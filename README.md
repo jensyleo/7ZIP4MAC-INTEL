@@ -8,13 +8,18 @@ This repository is the **Intel (x86_64) compatible fork** of
 [7ZIP4MAC](https://github.com/jensyleo/7ZIP4MAC), whose `main` branch targets
 the latest macOS only. Both projects share the same author and license.
 
-> Compatible with **Intel-based Macs (x86_64)**, as well as Apple Silicon
-> (arm64) — built and tested as a universal binary. Minimum deployment
-> target: **macOS 13 (Ventura)**, chosen specifically so the app keeps
-> running on Intel Macs. (The `SevenZipKit` engine package stays broadly
-> portable.)
+> Built specifically for **Intel-based Macs (x86_64)** — not a universal
+> binary; the arm64 slice is intentionally excluded (`ARCHS`/`VALID_ARCHS`
+> pinned to `x86_64`). Minimum deployment target: **macOS 13 (Ventura)**,
+> chosen so the app keeps running on Intel Macs. Apple Silicon users should
+> use [7ZIP4MAC](https://github.com/jensyleo/7ZIP4MAC) instead. (The
+> `SevenZipKit` engine package stays broadly portable.)
 
-> Status: **v1.0.0**
+> Status: **v1.2.0**
+
+## Screenshot
+
+![7ZIP4MAC-INTEL browsing an archive](docs/screenshots/overview.png)
 
 ## Features
 
