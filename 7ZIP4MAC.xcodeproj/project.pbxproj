@@ -584,7 +584,7 @@
 				ARCHS = x86_64;
 				VALID_ARCHS = x86_64;
 				ONLY_ACTIVE_ARCH = NO;
-				MARKETING_VERSION = 1.1.0;
+				MARKETING_VERSION = 1.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jensyleo.sevenzip4mac;
 				PRODUCT_NAME = 7ZIP4MAC;
 				SDKROOT = macosx;
@@ -678,7 +678,7 @@
 				ARCHS = x86_64;
 				VALID_ARCHS = x86_64;
 				ONLY_ACTIVE_ARCH = NO;
-				MARKETING_VERSION = 1.1.0;
+				MARKETING_VERSION = 1.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jensyleo.sevenzip4mac;
 				PRODUCT_NAME = 7ZIP4MAC;
 				SDKROOT = macosx;

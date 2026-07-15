@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.2.0] — Overwrite policy + multi-file Quick Look
+
+### Added
+
+- Extraction overwrite policy is now configurable (Settings ▸ General):
+  Overwrite, Skip, or Rename Extracted File.
+- Quick Look (Space) now previews every selected file, not just the first,
+  with the standard arrow-through-items navigation.
+- README: added a Roadmap section (Sparkle auto-update, Spotlight indexing,
+  Finder Sync extension — deferred, not active work).
+
 ## [1.1.0] — Initial Intel port
 
 ### Added
