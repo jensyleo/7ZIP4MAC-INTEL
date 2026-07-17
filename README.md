@@ -15,7 +15,7 @@ the latest macOS only. Both projects share the same author and license.
 > use [7ZIP4MAC](https://github.com/jensyleo/7ZIP4MAC) instead. (The
 > `SevenZipKit` engine package stays broadly portable.)
 
-> Status: **v1.2.2**
+> Status: **v1.3.0**
 
 ## Screenshot
 
@@ -55,11 +55,14 @@ the latest macOS only. Both projects share the same author and license.
 > (⌥-right-click its Dock icon ▸ Relaunch, or `killall Finder` in Terminal)
 > usually fixes it; if it doesn't, restarting the Mac reliably clears it.
 >
-> **Known limitation:** dragging out more than one selected entry at a time
-> only carries a single file to Finder — `SwiftUI.Table` has no built-in way
-> to bundle a multi-selection into one drag session (unlike `List`). Dragging
-> a single entry works normally; multi-item drag-out needs a custom AppKit
-> drag source and is left for a future version.
+> **Note:** dragging out several selected entries at once delivers all of
+> them to Finder as loose files, same as dragging a single one. (Under the
+> hood: `SwiftUI.Table` has no built-in way to bundle a multi-selection into
+> one drag session the way `List` does, so multi-selection drags are handled
+> by a small AppKit layer using `NSFilePromiseProvider` instead of SwiftUI's
+> `.onDrag`.) Double-clicking an entry that's already part of a larger
+> selection isn't a supported gesture — click it alone first, then
+> double-click normally.
 
 ## Architecture
 

@@ -108,7 +108,7 @@ enum DragOut {
         }
     }
 
-    private static func typeIdentifier(for entry: ArchiveEntry) -> String {
+    static func typeIdentifier(for entry: ArchiveEntry) -> String {
         if entry.isDirectory {
             return UTType.folder.identifier
         }

@@ -61,12 +61,20 @@ struct FileListView: View {
                 }
                 .buttonStyle(.plain)
                 .help(entry.path)
-                .onDrag {
-                    guard !entry.isParentLink, let archiveURL = viewModel.archiveURL else {
-                        return NSItemProvider()
-                    }
-                    return DragOut.itemProvider(for: entry, archiveURL: archiveURL, password: viewModel.sessionPassword)
-                }
+                .modifier(EntryDragModifier(
+                    entry: entry,
+                    archiveURL: viewModel.archiveURL,
+                    password: viewModel.sessionPassword,
+                    isPartOfMultiSelection: selection.count > 1 && selection.contains(entry.id),
+                    selectedEntries: {
+                        viewModel.visibleEntries.filter { selection.contains($0.id) && !$0.isParentLink }
+                    },
+                    onPlainClick: {
+                        selection = [entry.id]
+                        selectionAnchor = entry.id
+                    },
+                    onDoubleClick: { activate(entry) }
+                ))
             }
             .width(min: 200, ideal: 320)
 
@@ -119,6 +127,9 @@ struct FileListView: View {
             if NSApp.keyWindow?.firstResponder is NSTextView { return event }
 
             switch event.keyCode {
+            case 0 where event.modifierFlags.contains(.command): // kVK_ANSI_A, ⌘A
+                selection = Set(viewModel.visibleEntries.filter { !$0.isParentLink }.map(\.id))
+                return nil
             case 49 where !selection.isEmpty: // kVK_Space
                 onQuickLook()
                 return nil
@@ -298,5 +309,42 @@ private struct BreadcrumbBar: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .background(.bar)
+    }
+}
+
+/// Chooses how a row can be dragged out to Finder:
+///   - not draggable at all (".." row, or the archive isn't loaded yet);
+///   - part of a multi-selection → overlays `MultiItemDragTrigger`, which
+///     hands Finder every selected entry as loose files via a real AppKit
+///     `NSDraggingSession` (what `.onDrag` can't do for a `Table`);
+///   - otherwise → the existing single-item `.onDrag`/`NSItemProvider` path,
+///     unchanged and untouched by any of this.
+private struct EntryDragModifier: ViewModifier {
+    let entry: ArchiveEntry
+    let archiveURL: URL?
+    let password: String?
+    let isPartOfMultiSelection: Bool
+    let selectedEntries: () -> [ArchiveEntry]
+    let onPlainClick: () -> Void
+    let onDoubleClick: () -> Void
+
+    func body(content: Content) -> some View {
+        if entry.isParentLink || archiveURL == nil {
+            content
+        } else if isPartOfMultiSelection {
+            content.overlay(
+                MultiItemDragTrigger(
+                    entries: selectedEntries(),
+                    archiveURL: archiveURL!,
+                    password: password,
+                    onPlainClick: onPlainClick,
+                    onDoubleClick: onDoubleClick
+                )
+            )
+        } else {
+            content.onDrag {
+                DragOut.itemProvider(for: entry, archiveURL: archiveURL!, password: password)
+            }
+        }
     }
 }

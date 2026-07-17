@@ -2,6 +2,25 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.3.0] — Real multi-item drag-out + ⌘A (Select All)
+
+### Added
+
+- `⌘A` now selects every entry in the current folder (wired via the same
+  `NSEvent` local monitor pattern already used for Space/Return/Delete,
+  since `Table` swallows key events before SwiftUI's `.onKeyPress` sees them).
+- Dragging out several selected entries to Finder now delivers every one as
+  a loose file, matching a single-entry drag — no wrapper folder. `Table`
+  has no built-in way to bundle a multi-selection into one drag session
+  (unlike `List`), so this is handled by a small AppKit layer
+  (`MultiItemDragTrigger`, `NSFilePromiseProvider`) that only engages for
+  rows already part of a multi-selection; single-entry drag is untouched.
+
+### Known limitation
+
+- Double-clicking an entry that's already part of a larger selection isn't
+  a supported gesture — click it alone first, then double-click normally.
+
 ## [1.2.2] — Fix cold-launch file-open race (Intel-fork-specific)
 
 ### Fixed
