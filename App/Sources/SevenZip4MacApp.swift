@@ -15,10 +15,28 @@ import AppKit
 /// relying on SwiftUI to forward it to the right scene.
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    var onOpenFiles: (([URL]) -> Void)?
+    /// On a cold launch (app not already running), AppKit can call
+    /// `application(_:open:)` before SwiftUI has finished building the
+    /// scene and its `.onAppear` has had a chance to set this — a race that
+    /// silently dropped the very first file to open, since nothing was
+    /// listening yet. Buffering into `pendingURLs` until a handler exists,
+    /// then flushing immediately once it's set, closes that window.
+    var onOpenFiles: (([URL]) -> Void)? {
+        didSet { flushPendingURLsIfPossible() }
+    }
+
+    private var pendingURLs: [URL] = []
 
     func application(_ application: NSApplication, open urls: [URL]) {
-        onOpenFiles?(urls)
+        pendingURLs.append(contentsOf: urls)
+        flushPendingURLsIfPossible()
+    }
+
+    private func flushPendingURLsIfPossible() {
+        guard let onOpenFiles, !pendingURLs.isEmpty else { return }
+        let urls = pendingURLs
+        pendingURLs = []
+        onOpenFiles(urls)
     }
 }
 
