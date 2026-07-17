@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.3.1] — Fix file associations not taking effect on real Finder double-click
+
+### Fixed
+
+- Associating a format in Settings ▸ File Types looked successful (no
+  error), but double-clicking a file of that type in Finder kept opening
+  the previous default app (e.g. Archive Utility silently decompressing a
+  `.zip` in place, with no visible window). `NSWorkspace.setDefaultApplication`
+  only updates LaunchServices' Editor/Shell role bindings, never the "All"
+  role a real Finder double-click consults. Now also calls
+  `LSSetDefaultRoleHandlerForContentType(_:.all:_:)`. Verified end-to-end
+  with a real double-click in Finder, before and after. Applied to
+  `restoreOriginals()` too, so uninstalling correctly hands back the "All"
+  role.
+
 ## [1.3.0] — Real multi-item drag-out + ⌘A (Select All)
 
 ### Added
