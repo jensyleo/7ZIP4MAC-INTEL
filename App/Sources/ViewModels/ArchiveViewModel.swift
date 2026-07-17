@@ -27,7 +27,7 @@ public final class ArchiveViewModel: ObservableObject {
         /// single/multi-file extraction that's the extracted file(s), not
         /// the folder itself (selecting the folder would show it one level
         /// up, inside its parent, instead of opening straight to the file).
-        case finished(destination: URL, revealTargets: [URL])
+        case finished(destination: URL, revealTargets: [URL], overwritePolicy: ExtractionRequest.OverwritePolicy)
         case failed(message: String)
     }
 
@@ -286,7 +286,7 @@ public final class ArchiveViewModel: ObservableObject {
                     }
                 }
                 if Task.isCancelled { return }
-                self.extractionState = .finished(destination: destination, revealTargets: revealTargets)
+                self.extractionState = .finished(destination: destination, revealTargets: revealTargets, overwritePolicy: overwritePolicy)
             } catch is CancellationError {
                 self.extractionState = .idle
             } catch ArchiveError.cancelled {

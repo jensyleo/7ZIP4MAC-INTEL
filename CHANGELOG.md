@@ -2,6 +2,25 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.2.1] — Extraction completion dialog reports the overwrite policy
+
+### Fixed
+
+- The "Extraction Complete" dialog now always appears (even if the
+  completion-dialog setting is off) whenever the overwrite policy isn't
+  Overwrite, and its message states exactly what happened: which existing
+  files were left untouched (Skip), or that the newly extracted file was
+  renamed instead (Rename Extracted File). The underlying extraction was
+  already correct; the dialog just never surfaced it.
+
+### Documented
+
+- README: overwrite policy, "Associate Recommended Files…" button,
+  multi-file Quick Look, and a known limitation — dragging more than one
+  selected entry to Finder only carries a single file (`SwiftUI.Table` has
+  no built-in multi-item drag bundling, unlike `List`). Left for a future
+  version.
+
 ## [1.2.0] — Overwrite policy + multi-file Quick Look
 
 ### Added

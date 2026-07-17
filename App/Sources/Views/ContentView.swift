@@ -490,7 +490,14 @@ private struct SecondaryAlerts: ViewModifier {
                 }
                 Button("Done", role: .cancel) { viewModel.dismissExtractionResult() }
             } message: { destination in
-                Text("Files were extracted to “\(destination.lastPathComponent)”.")
+                switch finishedOverwritePolicy {
+                case .overwrite:
+                    Text("Files were extracted to “\(destination.lastPathComponent)”.")
+                case .skip:
+                    Text("Files were extracted to “\(destination.lastPathComponent)”. Any file that already existed there was left untouched (Skip).")
+                case .rename:
+                    Text("Files were extracted to “\(destination.lastPathComponent)”. Any file that already existed there was kept, and the newly extracted one was given a different name (Rename Extracted File).")
+                }
             }
             .alert("Couldn’t Extract", isPresented: extractionFailedPresented, presenting: failureMessage) { _ in
                 Button("OK", role: .cancel) { viewModel.dismissExtractionResult() }
@@ -508,11 +515,7 @@ private struct SecondaryAlerts: ViewModifier {
                 viewModel.showHiddenEntries = newValue
             }
             .onChange(of: finishedDestination) { destination in
-                // When the completion dialog is disabled, extraction just finishes
-                // quietly — clear the finished state so it doesn't linger.
-                if destination != nil, !settings.confirmAfterExtraction {
-                    viewModel.dismissExtractionResult()
-                }
+                dismissExtractionResultIfQuiet(destination)
             }
             .onOpenURL { url in onHandleIncoming(url) }
             .alert("Archive Test", isPresented: testPresented, presenting: viewModel.testMessage) { _ in
@@ -550,9 +553,19 @@ private struct SecondaryAlerts: ViewModifier {
         Binding(get: { viewModel.isExtracting }, set: { if !$0 { viewModel.cancelExtraction() } })
     }
 
+    // Always shown when files were skipped or renamed instead of overwritten
+    // — that's not cosmetic "it's done" noise, it's information the user
+    // needs to know their files (or the newly extracted ones) ended up
+    // somewhere other than expected.
+    private var shouldShowExtractionFinished: Bool {
+        guard finishedDestination != nil else { return false }
+        if settings.confirmAfterExtraction { return true }
+        return finishedOverwritePolicy != .overwrite
+    }
+
     private var extractionFinishedPresented: Binding<Bool> {
         Binding(
-            get: { finishedDestination != nil && settings.confirmAfterExtraction },
+            get: { shouldShowExtractionFinished },
             set: { if !$0 { viewModel.dismissExtractionResult() } }
         )
     }
@@ -562,13 +575,32 @@ private struct SecondaryAlerts: ViewModifier {
     }
 
     private var finishedDestination: URL? {
-        if case .finished(let destination, _) = viewModel.extractionState { return destination }
+        if case .finished(let destination, _, _) = viewModel.extractionState { return destination }
         return nil
     }
 
     private var finishedRevealTargets: [URL] {
-        if case .finished(_, let revealTargets) = viewModel.extractionState { return revealTargets }
+        if case .finished(_, let revealTargets, _) = viewModel.extractionState { return revealTargets }
         return []
+    }
+
+    private var finishedOverwritePolicy: ExtractionRequest.OverwritePolicy {
+        if case .finished(_, _, let overwritePolicy) = viewModel.extractionState { return overwritePolicy }
+        return .overwrite
+    }
+
+    /// When the completion dialog is disabled, extraction just finishes
+    /// quietly — clear the finished state so it doesn't linger. Files that
+    /// were skipped/renamed instead of overwritten always show the dialog
+    /// regardless (see `extractionFinishedPresented`), so don't dismiss those
+    /// out from under the user.
+    private func dismissExtractionResultIfQuiet(_ destination: URL?) {
+        guard destination != nil else { return }
+        let dialogIsOff: Bool = !settings.confirmAfterExtraction
+        let policyWasDefault: Bool = finishedOverwritePolicy == .overwrite
+        if dialogIsOff, policyWasDefault {
+            viewModel.dismissExtractionResult()
+        }
     }
 
     private var failureMessage: String? {
