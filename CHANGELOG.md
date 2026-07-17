@@ -2,6 +2,23 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.2.2] — Fix cold-launch file-open race (Intel-fork-specific)
+
+### Fixed
+
+- Opening a file from Finder while 7ZIP4MAC wasn't already running could
+  silently fail to load it: AppKit's `application(_:open:)` delegate
+  callback can fire before SwiftUI's `.onAppear` has wired up the handler,
+  a race introduced when the main scene changed from `WindowGroup` to a
+  single `Window` (v1.1.0's duplicate-window fix, since `Window` doesn't
+  reliably route `.onOpenURL` on macOS 13). `AppDelegate` now buffers
+  incoming URLs until a handler is set, then flushes them immediately.
+  Verified with 5 consecutive cold launches (previously intermittent).
+
+This fix has no counterpart in the upstream Apple Silicon
+[7ZIP4MAC](https://github.com/jensyleo/7ZIP4MAC) — it doesn't use a single
+`Window` scene, so this race doesn't exist there.
+
 ## [1.2.1] — Extraction completion dialog reports the overwrite policy
 
 ### Fixed
