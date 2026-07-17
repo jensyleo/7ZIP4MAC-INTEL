@@ -1,4 +1,5 @@
 import AppKit
+import CoreServices
 import UniformTypeIdentifiers
 import SevenZipKit
 
@@ -11,6 +12,18 @@ import SevenZipKit
 /// leaving the default-handler assignment dangling on a deleted app (macOS
 /// doesn't do this automatically; the assignment is keyed by bundle
 /// identifier, not by whether the file still exists on disk).
+///
+/// `NSWorkspace.setDefaultApplication(at:toOpen:)` alone isn't enough:
+/// verified live that it only updates LaunchServices' Editor/Shell role
+/// bindings for the type, never the "All" role — but a real Finder
+/// double-click specifically consults the "All" role, not Editor/Shell.
+/// Toggling a format "on" in Settings looked like it worked (no error, the
+/// UTI shows up as claimed), yet double-clicking a file of that type in
+/// Finder kept launching whatever app held the "All" role before (Archive
+/// Utility for `.zip`, silently decompressing it in place — no visible app
+/// window, which read as "nothing happened" / "opens something else"
+/// rather than an obvious failure). `LSSetDefaultRoleHandlerForContentType`
+/// is the lower-level API that actually updates the "All" role.
 @MainActor
 enum FileAssociationService {
     /// Makes 7ZIP4MAC the default application for `format`, recording the
@@ -31,11 +44,24 @@ enum FileAssociationService {
         }
         do {
             try await NSWorkspace.shared.setDefaultApplication(at: Bundle.main.bundleURL, toOpen: type)
+            setAllRoleHandler(for: type, bundleID: Bundle.main.bundleIdentifier)
             ArchiveLog.service.info("Associated \(format.key, privacy: .public) with 7ZIP4MAC")
             return true
         } catch {
             ArchiveLog.service.error("Failed to associate \(format.key, privacy: .public): \(error.localizedDescription, privacy: .public)")
             return false
+        }
+    }
+
+    /// Updates LaunchServices' "All" role binding for `type` — the one a
+    /// real Finder double-click consults — since `NSWorkspace` never touches
+    /// it. Logged, not thrown: this is a best-effort second step after the
+    /// `NSWorkspace` call already succeeded, not the primary failure path.
+    private static func setAllRoleHandler(for type: UTType, bundleID: String?) {
+        guard let bundleID else { return }
+        let status = LSSetDefaultRoleHandlerForContentType(type.identifier as CFString, .all, bundleID as CFString)
+        if status != noErr {
+            ArchiveLog.service.error("LSSetDefaultRoleHandlerForContentType failed for \(type.identifier, privacy: .public): \(status)")
         }
     }
 
@@ -63,6 +89,7 @@ enum FileAssociationService {
             guard FileManager.default.fileExists(atPath: path) else { continue }
             do {
                 try await NSWorkspace.shared.setDefaultApplication(at: url, toOpen: type)
+                setAllRoleHandler(for: type, bundleID: Bundle(url: url)?.bundleIdentifier)
                 ArchiveLog.service.info("Restored \(format.key, privacy: .public) to its original handler")
             } catch {
                 ArchiveLog.service.error("Failed to restore \(format.key, privacy: .public): \(error.localizedDescription, privacy: .public)")
