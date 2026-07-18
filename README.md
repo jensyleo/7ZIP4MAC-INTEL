@@ -55,6 +55,16 @@ the latest macOS only. Both projects share the same author and license.
 > (⌥-right-click its Dock icon ▸ Relaunch, or `killall Finder` in Terminal)
 > usually fixes it; if it doesn't, restarting the Mac reliably clears it.
 >
+> **macOS 13 note:** on this fork's deployment target, associating a format
+> alone isn't enough to make Finder's double-click actually open 7ZIP4MAC —
+> `NSWorkspace.setDefaultApplication` doesn't propagate to the LaunchServices
+> "All" role that a real Finder double-click consults on macOS 13, so this
+> fork also calls the lower-level `LSSetDefaultRoleHandlerForContentType`.
+> This is a macOS-version behavior gap, not a code difference: the upstream
+> Apple Silicon [7ZIP4MAC](https://github.com/jensyleo/7ZIP4MAC) runs the
+> identical association code and doesn't need this extra call on its newer
+> deployment target.
+>
 > **Note:** dragging out several selected entries at once delivers all of
 > them to Finder as loose files, same as dragging a single one. (Under the
 > hood: `SwiftUI.Table` has no built-in way to bundle a multi-selection into

@@ -16,6 +16,16 @@ All notable changes to this project are documented in this file.
   with a real double-click in Finder, before and after. Applied to
   `restoreOriginals()` too, so uninstalling correctly hands back the "All"
   role.
+- **Confirmed this is a macOS-version behavior gap, not a code difference
+  between forks**: diffed `FileAssociationService.swift` directly against
+  the upstream Apple Silicon
+  [7ZIP4MAC](https://github.com/jensyleo/7ZIP4MAC) — byte-identical, only
+  calls `NSWorkspace`, no `LSSetDefaultRoleHandlerForContentType` — and
+  that fork does not exhibit this bug on its newer macOS deployment
+  target. `NSWorkspace.setDefaultApplication` apparently propagates to
+  LaunchServices' "All" role on newer macOS but not on macOS 13, this
+  fork's target. The extra call is specific to this fork and should stay
+  even if a future upstream diff doesn't have it.
 
 ## [1.3.0] — Real multi-item drag-out + ⌘A (Select All)
 

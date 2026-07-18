@@ -24,6 +24,17 @@ import SevenZipKit
 /// window, which read as "nothing happened" / "opens something else"
 /// rather than an obvious failure). `LSSetDefaultRoleHandlerForContentType`
 /// is the lower-level API that actually updates the "All" role.
+///
+/// This is a macOS-version behavior gap, not a difference in this app's own
+/// code: the upstream Apple Silicon [7ZIP4MAC](https://github.com/jensyleo/7ZIP4MAC)
+/// (targeting the latest macOS) runs the exact same `FileAssociationService`
+/// — confirmed identical, diffed directly — calling only `NSWorkspace`, with
+/// no `LSSetDefaultRoleHandlerForContentType`, and does *not* exhibit this bug
+/// there. So `NSWorkspace.setDefaultApplication` apparently does propagate to
+/// the "All" role on newer macOS but not on macOS 13 (Ventura), this fork's
+/// deployment target. Keep this extra call here even if a future upstream
+/// diff doesn't have it — it's required for macOS 13 specifically, not
+/// something that fell out of sync.
 @MainActor
 enum FileAssociationService {
     /// Makes 7ZIP4MAC the default application for `format`, recording the
