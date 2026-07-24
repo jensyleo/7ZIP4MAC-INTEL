@@ -26,3 +26,12 @@ xcuserdata/
 
 # macOS
 .DS_Store
+
+# Secrets / signing material — never commit real credentials or certificates
+.env
+.env.*
+*.pem
+*.p12
+*.mobileprovision
+*.cer
+*.certSigningRequest
