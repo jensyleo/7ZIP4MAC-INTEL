@@ -2,6 +2,23 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.3.2] — Revert multi-item drag-out (broke all drag-out on macOS 13)
+
+### Fixed
+
+- The v1.3.0 multi-item drag-out feature (`MultiItemDragTrigger`, a custom
+  AppKit `NSFilePromiseProvider` + manual mouse-tracking overlay) broke
+  drag-out to Finder entirely on macOS 13 — not just multi-selection, a
+  single-item drag no longer started at all. Reported directly: "no me
+  permite arrastrar al Finder como la versión para procesadores M."
+  Reverted `FileListView.swift`/`DragOut.swift` to the pre-1.3.0 single-item
+  `.onDrag` implementation (byte-identical, diffed against the last known-good
+  commit) and deleted `MultiItemDragTrigger.swift`. Multi-item drag-out is a
+  known limitation again (documented in the README) rather than a broken
+  feature — revisiting it needs a macOS-13-specific approach, verified live
+  on real hardware rather than guessed at from a sandbox that can't reliably
+  simulate AppKit drag gestures.
+
 ## [1.3.1] — Fix file associations not taking effect on real Finder double-click
 
 ### Fixed

@@ -15,7 +15,7 @@ the latest macOS only. Both projects share the same author and license.
 > use [7ZIP4MAC](https://github.com/jensyleo/7ZIP4MAC) instead. (The
 > `SevenZipKit` engine package stays broadly portable.)
 
-> Status: **v1.3.1**
+> Status: **v1.3.2**
 
 ## Screenshot
 
@@ -65,14 +65,16 @@ the latest macOS only. Both projects share the same author and license.
 > identical association code and doesn't need this extra call on its newer
 > deployment target.
 >
-> **Note:** dragging out several selected entries at once delivers all of
-> them to Finder as loose files, same as dragging a single one. (Under the
-> hood: `SwiftUI.Table` has no built-in way to bundle a multi-selection into
-> one drag session the way `List` does, so multi-selection drags are handled
-> by a small AppKit layer using `NSFilePromiseProvider` instead of SwiftUI's
-> `.onDrag`.) Double-clicking an entry that's already part of a larger
-> selection isn't a supported gesture — click it alone first, then
-> double-click normally.
+> **Known limitation:** dragging out more than one selected entry at a time
+> only carries a single file to Finder — `SwiftUI.Table` has no built-in way
+> to bundle a multi-selection into one drag session (unlike `List`). Dragging
+> a single entry works normally. The upstream Apple Silicon
+> [7ZIP4MAC](https://github.com/jensyleo/7ZIP4MAC) has a custom AppKit
+> multi-item drag source (`NSFilePromiseProvider` + a manual mouse-tracking
+> loop) for this; porting it here broke drag-out entirely on macOS 13 (not
+> even a single-item drag started) in a way that couldn't be safely diagnosed
+> without live device testing, so it was reverted rather than shipped broken.
+> Revisiting this needs a macOS-13-specific AppKit approach, verified live.
 
 ## Architecture
 
