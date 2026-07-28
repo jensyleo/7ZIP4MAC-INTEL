@@ -2,6 +2,25 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.3.3] — Fix Finder drag-out on macOS 13 (single and multi-item)
+
+### Fixed
+
+- Drag-out to Finder was fundamentally broken on this fork's macOS 13 target
+  even before the v1.3.0 multi-item feature — SwiftUI's `Button` + `.onDrag`
+  gesture recognizers conflict on this OS version, with `Button`'s press
+  gesture almost always winning, so the drag gesture never started (reported:
+  "no me permite arrastrar al Finder como la versión para procesadores M").
+  Replaced `Button`/`.onDrag` as the interaction surface for every row with a
+  custom AppKit-level trigger (`EntryDragTrigger`): an `NSViewRepresentable`
+  overlay that disambiguates click vs. drag in `mouseDown` by tracking pointer
+  movement against a threshold, then either runs the existing single-click /
+  double-click handling or starts a real `NSDraggingSession` backed by
+  `NSFilePromiseProvider` (the same mechanism used for multi-item drag
+  upstream on Apple Silicon). Verified on real Intel hardware: click,
+  ⌘-click, ⇧-click, and double-click selection/activation all still work, and
+  both single- and multi-item drag-out to Finder now work.
+
 ## [1.3.2] — Revert multi-item drag-out (broke all drag-out on macOS 13)
 
 ### Fixed

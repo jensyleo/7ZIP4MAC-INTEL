@@ -15,7 +15,7 @@ the latest macOS only. Both projects share the same author and license.
 > use [7ZIP4MAC](https://github.com/jensyleo/7ZIP4MAC) instead. (The
 > `SevenZipKit` engine package stays broadly portable.)
 
-> Status: **v1.3.2**
+> Status: **v1.3.3**
 
 ## Screenshot
 
@@ -38,8 +38,9 @@ the latest macOS only. Both projects share the same author and license.
 - **Password-protected archives**: the password is asked for and kept only in
   memory for that session (never written to disk); the prompt caps out at 3
   attempts before resetting the window.
-- **Drag an entry out to Finder** or preview it (or several selected entries,
-  with arrow-through navigation) in place with **Quick Look** (Space bar).
+- **Drag one or several entries out to Finder**, or preview them (with
+  arrow-through navigation across a selection) in place with **Quick Look**
+  (Space bar).
 - **Test** an archive's integrity, run a **compression benchmark**, and browse
   recently opened archives.
 - File-type associations (Settings ▸ File Types) to make 7ZIP4MAC the default
@@ -64,17 +65,6 @@ the latest macOS only. Both projects share the same author and license.
 > Apple Silicon [7ZIP4MAC](https://github.com/jensyleo/7ZIP4MAC) runs the
 > identical association code and doesn't need this extra call on its newer
 > deployment target.
->
-> **Known limitation:** dragging out more than one selected entry at a time
-> only carries a single file to Finder — `SwiftUI.Table` has no built-in way
-> to bundle a multi-selection into one drag session (unlike `List`). Dragging
-> a single entry works normally. The upstream Apple Silicon
-> [7ZIP4MAC](https://github.com/jensyleo/7ZIP4MAC) has a custom AppKit
-> multi-item drag source (`NSFilePromiseProvider` + a manual mouse-tracking
-> loop) for this; porting it here broke drag-out entirely on macOS 13 (not
-> even a single-item drag started) in a way that couldn't be safely diagnosed
-> without live device testing, so it was reverted rather than shipped broken.
-> Revisiting this needs a macOS-13-specific AppKit approach, verified live.
 
 ## Architecture
 

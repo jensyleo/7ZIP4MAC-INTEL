@@ -61,12 +61,22 @@ struct FileListView: View {
                 }
                 .buttonStyle(.plain)
                 .help(entry.path)
-                .onDrag {
-                    guard !entry.isParentLink, let archiveURL = viewModel.archiveURL else {
-                        return NSItemProvider()
-                    }
-                    return DragOut.itemProvider(for: entry, archiveURL: archiveURL, password: viewModel.sessionPassword)
-                }
+                .modifier(EntryDragModifier(
+                    entry: entry,
+                    archiveURL: viewModel.archiveURL,
+                    password: viewModel.sessionPassword,
+                    draggedEntries: {
+                        // Dragging a row that's part of a larger selection
+                        // drags the whole selection (Finder convention);
+                        // dragging any other row drags just that one entry.
+                        if selection.count > 1, selection.contains(entry.id) {
+                            return viewModel.visibleEntries.filter { selection.contains($0.id) && !$0.isParentLink }
+                        }
+                        return [entry]
+                    },
+                    onPlainClick: { handleClick(on: entry) },
+                    onDoubleClick: { activate(entry) }
+                ))
             }
             .width(min: 200, ideal: 320)
 
@@ -301,5 +311,44 @@ private struct BreadcrumbBar: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .background(.bar)
+    }
+}
+
+/// Overlays `EntryDragTrigger` on every draggable row (skipped only for the
+/// ".." row or before an archive is loaded). Routes both drag *and* plain/
+/// double-click through the AppKit trigger — `Table`'s `Button` remains
+/// purely visual once this is active, since the overlay intercepts the
+/// mouse-down first. See `EntryDragTrigger.swift` for why `Button` +
+/// `.onDrag` alone isn't reliable enough on macOS 13 to keep drag on that
+/// path for even a single, unselected entry.
+///
+/// NEEDS LIVE VERIFICATION ON REAL HARDWARE — this replaces the previously
+/// working (if drag-less) Button-based click handling with a raw AppKit
+/// `mouseDown`/`nextEvent` loop for every row, not just multi-selected ones.
+/// The sandbox this was written in cannot reliably simulate either outcome
+/// (click-selection or drag) via synthetic mouse events, so neither path has
+/// been confirmed working here — only that it builds.
+private struct EntryDragModifier: ViewModifier {
+    let entry: ArchiveEntry
+    let archiveURL: URL?
+    let password: String?
+    let draggedEntries: () -> [ArchiveEntry]
+    let onPlainClick: () -> Void
+    let onDoubleClick: () -> Void
+
+    func body(content: Content) -> some View {
+        if entry.isParentLink || archiveURL == nil {
+            content
+        } else {
+            content.overlay(
+                EntryDragTrigger(
+                    entries: draggedEntries(),
+                    archiveURL: archiveURL!,
+                    password: password,
+                    onPlainClick: onPlainClick,
+                    onDoubleClick: onDoubleClick
+                )
+            )
+        }
     }
 }
