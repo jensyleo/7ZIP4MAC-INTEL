@@ -2,6 +2,26 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.4.0] — Sync with base version: add Quick Look documentation
+
+### Added
+
+- Documented Quick Look preview for local builds. The feature was already
+  present in the code but undocumented: developers can now compile
+  7ZIP4MAC-INTEL locally with Quick Look support by adding their Apple ID to
+  Xcode and updating the build script. Public releases remain main-app-only
+  (no Quick Look bundled).
+
+### Updated
+
+- README: clarified that multi-item drag-out works (both `v1.3.3` and the base
+  v1.4.0 support this — v1.3.3 fixed it via the AppKit `EntryDragTrigger`
+  overlay; the base already had it). Noted that double-clicking an entry
+  that's already part of a selection must be done on a solo entry first.
+- Synced documentation with upstream [7ZIP4MAC](https://github.com/jensyleo/7ZIP4MAC)
+  base version; macOS 13-specific notes and Intel-specific differences
+  preserved.
+
 ## [1.3.3] — Fix Finder drag-out on macOS 13 (single and multi-item)
 
 ### Fixed

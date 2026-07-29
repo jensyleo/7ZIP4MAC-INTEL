@@ -9,6 +9,13 @@ private enum OSAScriptError {
     static let executionFailed = -2700
 }
 
+/// Workaround for Swift 5.0 build environment: stores a result in a mutable box
+/// so it can be captured and written to in a Task without triggering
+/// "mutation of captured var in concurrently-executing code" errors.
+private final class ResultBox<T>: @unchecked Sendable {
+    var value: Result<T, Error>?
+}
+
 /// Backs the `compress` AppleScript command declared in `7ZIP4MAC.sdef`.
 ///
 /// AppleScript commands are inherently synchronous (`performDefaultImplementation`
@@ -36,21 +43,21 @@ final class CompressScriptCommand: NSScriptCommand {
         let password = evaluatedArguments?["password"] as? String
 
         let semaphore = DispatchSemaphore(value: 0)
-        nonisolated(unsafe) var result: Result<URL, Error>?
+        let result = ResultBox<URL>()
         Task {
             do {
                 let url = try await AutomationService.compress(
                     sources: sources, destination: destination, password: password
                 )
-                result = .success(url)
+                result.value = .success(url)
             } catch {
-                result = .failure(error)
+                result.value = .failure(error)
             }
             semaphore.signal()
         }
         semaphore.wait()
 
-        switch result {
+        switch result.value {
         case .success(let url):
             return url as NSURL
         case .failure(let error):
@@ -83,21 +90,21 @@ final class ExtractScriptCommand: NSScriptCommand {
         let password = evaluatedArguments?["password"] as? String
 
         let semaphore = DispatchSemaphore(value: 0)
-        nonisolated(unsafe) var result: Result<URL, Error>?
+        let result = ResultBox<URL>()
         Task {
             do {
                 let url = try await AutomationService.extract(
                     archive: archive, destination: destination, password: password
                 )
-                result = .success(url)
+                result.value = .success(url)
             } catch {
-                result = .failure(error)
+                result.value = .failure(error)
             }
             semaphore.signal()
         }
         semaphore.wait()
 
-        switch result {
+        switch result.value {
         case .success(let url):
             return url as NSURL
         case .failure(let error):

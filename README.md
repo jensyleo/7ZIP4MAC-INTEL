@@ -15,7 +15,7 @@ the latest macOS only. Both projects share the same author and license.
 > use [7ZIP4MAC](https://github.com/jensyleo/7ZIP4MAC) instead. (The
 > `SevenZipKit` engine package stays broadly portable.)
 
-> Status: **v1.3.3**
+> Status: **v1.4.0**
 
 ## Screenshot
 
@@ -38,9 +38,8 @@ the latest macOS only. Both projects share the same author and license.
 - **Password-protected archives**: the password is asked for and kept only in
   memory for that session (never written to disk); the prompt caps out at 3
   attempts before resetting the window.
-- **Drag one or several entries out to Finder**, or preview them (with
-  arrow-through navigation across a selection) in place with **Quick Look**
-  (Space bar).
+- **Drag an entry out to Finder** or preview it (or several selected entries,
+  with arrow-through navigation) in place with **Quick Look** (Space bar).
 - **Test** an archive's integrity, run a **compression benchmark**, and browse
   recently opened archives.
 - File-type associations (Settings ▸ File Types) to make 7ZIP4MAC the default
@@ -55,6 +54,11 @@ the latest macOS only. Both projects share the same author and license.
 > Finder's own icon cache, not a broken association. Relaunching Finder
 > (⌥-right-click its Dock icon ▸ Relaunch, or `killall Finder` in Terminal)
 > usually fixes it; if it doesn't, restarting the Mac reliably clears it.
+>
+> **Note:** dragging out several selected entries at once delivers all of
+> them to Finder as loose files, same as dragging a single one.
+> Double-clicking an entry that's already part of a larger selection isn't a
+> supported gesture — click it alone first, then double-click normally.
 >
 > **macOS 13 note:** on this fork's deployment target, associating a format
 > alone isn't enough to make Finder's double-click actually open 7ZIP4MAC —
@@ -115,6 +119,18 @@ The app is installed to `/Applications/7ZIP4MAC.app`.
 > Note: on a development machine the app is signed ad-hoc (`-`). A Developer ID
 > signature is needed to distribute it without a Gatekeeper prompt on other
 > machines.
+
+## Quick Look preview (optional, for local builds only)
+
+The public releases of 7ZIP4MAC-INTEL do not include Quick Look — only the main application.
+
+If you compile 7ZIP4MAC-INTEL yourself and want to enable Quick Look for `.7z`, `.zip`, and other archive formats in Finder (press Space on any archive file), you can:
+
+1. **Add your Apple ID to Xcode** (free account, no cost): Xcode ▸ Settings ▸ Accounts ▸ click `+` ▸ sign in with your Apple ID.
+2. **Modify the build script**: edit `Scripts/build.sh` and replace `--sign -` with `--sign <your-team-id>`. You can find your Personal Team ID in Xcode ▸ Settings ▸ Accounts ▸ your Apple ID ▸ Manage Certificates (it's a 10-character string like `ABC123DEF4`).
+3. **Rebuild**: run `Scripts/build.sh` again. The Quick Look extension will now be bundled and signed with your identity.
+
+The extension will work on your own Mac. If you want to distribute a build with Quick Look to others, you will need a [paid Apple Developer Program membership](https://developer.apple.com/programs/) ($99/year) to obtain a Developer ID certificate for notarization.
 
 ## Roadmap
 
