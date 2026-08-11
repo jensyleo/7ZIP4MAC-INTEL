@@ -2,6 +2,35 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.4.1] — Fix silent name-collision bug in in-archive Rename/Move/Copy
+
+### Fixed
+
+- Renaming, moving, or copying an entry within an archive to a path that
+  already existed there was accepted silently: the 7-Zip CLI's `rn` doesn't
+  check for this itself, so it created a second entry under the same
+  name instead of erroring — data still on disk, but orphaned under a name
+  nothing lists as available (whichever entry 7-Zip happens to read first
+  "wins"). `copyEntry` had the same gap in the other direction: it silently
+  overwrote the existing entry rather than confirming first. Both now check
+  for the collision up front and show "An item named "…" already exists
+  here." instead of touching anything. Verified on real Intel hardware.
+- Ported from base commit `08a4bbd` (the duplicate-name-collision part only —
+  that commit's cross-archive drag and Rename-on-conflict UI depend on
+  multi-window support, which this fork doesn't have; see below).
+
+### Known gap vs. base version
+
+- Multi-window support, cross-archive drag-and-drop between two open
+  archives, and the Rename-on-conflict dialog for cross-archive transfers
+  (base commits `7c72505` and `08a4bbd`) are **not** ported. This fork
+  deliberately uses a single `Window` (not `WindowGroup`) with one shared
+  `ArchiveViewModel`, a fix for a macOS 13-specific bug where `WindowGroup`
+  silently broke `.onOpenURL` routing for a second Finder "open" event while
+  already running. Adopting multi-window here would need to re-verify that
+  fix still holds under the base's `WindowGroup(for: URL?.self)` approach —
+  a real architectural change, not a portable patch.
+
 ## [1.4.0] — Sync with base version: add Quick Look documentation
 
 ### Added

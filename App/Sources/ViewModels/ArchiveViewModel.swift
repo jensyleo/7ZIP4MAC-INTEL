@@ -426,6 +426,16 @@ public final class ArchiveViewModel: ObservableObject {
     /// Moves (or renames) an entry to a new path within the same archive.
     public func moveEntry(path: String, toPath newPath: String, notifySuccess: Bool = true) {
         guard case .loaded(let archive) = state, path != newPath else { return }
+        // 7-Zip's `rn` doesn't check this itself — asked to rename onto a
+        // path that's already taken, it silently creates a second entry
+        // with that same name instead of erroring or replacing it, which
+        // looks like data loss the next time either one is opened (whichever
+        // 7-Zip happens to read first "wins", the other's content is still
+        // there but orphaned under a name nothing lists as available).
+        if Self.pathExists(newPath, in: archive.entries) {
+            editMessage = "An item named “\((newPath as NSString).lastPathComponent)” already exists here."
+            return
+        }
         Task { [serviceProvider] in
             do {
                 let service = try serviceProvider()
@@ -450,6 +460,13 @@ public final class ArchiveViewModel: ObservableObject {
         guard case .loaded(let archive) = state, path != newPath else { return }
         guard let format = Self.writableFormat(for: archive) else {
             editMessage = Self.unwritableFormatMessage(for: archive)
+            return
+        }
+        // Unlike `rn`, `a` (what this ends up calling) does replace a
+        // matching path rather than duplicating it — but still silently,
+        // with no confirmation, so this is checked here for the same reason.
+        if Self.pathExists(newPath, in: archive.entries) {
+            editMessage = "An item named “\((newPath as NSString).lastPathComponent)” already exists here."
             return
         }
         Task { [serviceProvider] in
@@ -503,6 +520,17 @@ public final class ArchiveViewModel: ObservableObject {
 
     private static func describe(_ error: Error) -> String {
         (error as? ArchiveError)?.localizedDescription ?? error.localizedDescription
+    }
+
+    /// Whether `path` already names an entry in `entries` — trailing slashes
+    /// (how folders are stored) normalized away so a file and a
+    /// same-named folder are still correctly seen as a collision.
+    private static func pathExists(_ path: String, in entries: [ArchiveEntry]) -> Bool {
+        let normalized = path.hasSuffix("/") ? String(path.dropLast()) : path
+        return entries.contains { entry in
+            let entryPath = entry.path.hasSuffix("/") ? String(entry.path.dropLast()) : entry.path
+            return entryPath == normalized
+        }
     }
 
     /// The container format to use when writing back into `archive` (Add,
