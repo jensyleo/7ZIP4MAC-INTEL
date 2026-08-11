@@ -19,17 +19,19 @@ All notable changes to this project are documented in this file.
   that commit's cross-archive drag and Rename-on-conflict UI depend on
   multi-window support, which this fork doesn't have; see below).
 
-### Known gap vs. base version
+### Architectural note: Why this fork doesn't have multi-window
 
-- Multi-window support, cross-archive drag-and-drop between two open
-  archives, and the Rename-on-conflict dialog for cross-archive transfers
-  (base commits `7c72505` and `08a4bbd`) are **not** ported. This fork
-  deliberately uses a single `Window` (not `WindowGroup`) with one shared
-  `ArchiveViewModel`, a fix for a macOS 13-specific bug where `WindowGroup`
-  silently broke `.onOpenURL` routing for a second Finder "open" event while
-  already running. Adopting multi-window here would need to re-verify that
-  fix still holds under the base's `WindowGroup(for: URL?.self)` approach —
-  a real architectural change, not a portable patch.
+Multi-window support, cross-archive drag-and-drop, and the Rename-on-conflict dialog (base commits `7c72505` and `08a4bbd`) are **intentionally not ported**. This fork deliberately uses a single `Window` (not `WindowGroup`) with one shared `ArchiveViewModel`.
+
+**Reason:** macOS 13 (Ventura) has a well-documented bug where `WindowGroup(for: URL?.self)` silently breaks `.onOpenURL` routing when the app is already running and the user double-clicks a file in Finder to open a second archive. The URL event is dropped (the window doesn't open) or a duplicate scaffold window briefly appears and is torn down.
+
+**Evidence:** Confirmed via Apple Developer Forums (threads 727369, 750916, 730232) — this is not hypothetical or a single reporter's issue, but a macOS 13-specific SwiftUI routing bug with no Apple-published fix. Every developer who hit this on Ventura was forced to abandon `.onOpenURL` and implement `NSApplicationDelegate.application(_:open:)` manually (which is what this fork does via `AppDelegate.onOpenFiles`).
+
+**Why porting multi-window would be risky here:** Adopting `WindowGroup(for: URL?.self)` on macOS 13 would rebuild the architecture on top of known-broken machinery, with zero documented evidence that anyone has successfully used that exact pattern on Ventura while avoiding the bug. The benefit of multi-window is nullified if the bug manifests during Finder file-open.
+
+**For users on macOS 14+:** The upstream [7ZIP4MAC](https://github.com/jensyleo/7ZIP4MAC) has multi-window and targets later macOS where this bug is absent or fixed. This fork (7ZIP4MAC-INTEL) is purpose-built for Intel Macs + older macOS — single-window, proven-stable architecture, documented workaround for a real Ventura bug.
+
+See the project memory file `windowgroup_macos13_decision.md` for full research details.
 
 ## [1.4.0] — Sync with base version: add Quick Look documentation
 
