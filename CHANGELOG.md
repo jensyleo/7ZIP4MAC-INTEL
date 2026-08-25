@@ -2,6 +2,41 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.4.2] — Quick Look toggle/refresh, GNU tar display fix
+
+### Fixed
+
+- **Quick Look now toggles like Finder's:** pressing Space or ⌘Y while the
+  panel is already open now closes it, instead of only ever reopening it.
+  Clicking a different row while the panel is open refreshes the preview in
+  place (previously the preview only updated when explicitly reopened).
+  Deselecting everything, or narrowing the selection down to only folders,
+  now closes the panel automatically instead of leaving a stale preview on
+  screen. Ported from base commit `4a81b2e` (the toggle/refresh logic only —
+  see below for what wasn't ported).
+- **GNU tar archives no longer hide their top-level contents.** GNU tar
+  prefixes every path with `./` and lists the archive root as a bare `.`;
+  left as-is, that `.` became the first path component everywhere, which the
+  hidden-file filter (anything starting with `.`) then hid — wiping out the
+  entire top level of the file list for any `.tar` made with GNU tar. Fixed
+  in `SevenZipKit`'s listing parser, which is shared, dependency-free code —
+  ported directly from base commit `b4d4835` with no adaptation needed.
+  Covered by a new unit test.
+
+### Not ported: toolbar customization (would have introduced a crash)
+
+Base commit `4a81b2e` also added `.toolbar(id:)` / `CustomizableToolbarContent`
+support (right-click the toolbar → "Customize Toolbar…", with the layout
+remembered). This fork initially ported it too, but the base's very next
+commit (`af58846`) reverted it after finding a reproducible AppKit crash
+(`EXC_BREAKPOINT` inside `NSToolbar`'s `_insertNewItemWithItemIdentifier:`)
+that fires whenever a **second window** is created while a customizable
+toolbar identifier is in use — exactly the situation this fork already has
+with its separate Benchmark window (Tools ▸ Benchmark). The port was pulled
+before publishing, matching the base's own revert. Verified on real Intel
+hardware: opening the Benchmark window while an archive is open no longer
+carries this risk, since the toolbar was never made customizable here.
+
 ## [1.4.1] — Fix silent name-collision bug in in-archive Rename/Move/Copy
 
 ### Fixed

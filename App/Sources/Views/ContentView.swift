@@ -78,6 +78,7 @@ struct ContentView: View {
             .onDrop(of: [.fileURL], isTargeted: $isDropTargeted, perform: handleDrop)
             .navigationTitle(viewModel.archiveURL?.lastPathComponent ?? "7ZIP4MAC")
             .toolbar { toolbarContent }
+            .onChange(of: selection) { _ in refreshQuickLookIfVisible() }
 
             if showInspector {
                 Divider()
@@ -131,9 +132,40 @@ struct ContentView: View {
     }
 
     /// Extracts every selected file to a temporary file and shows them all in
-    /// Quick Look (with the standard arrow-through-items navigation). Folders
-    /// are skipped — Quick Look has nothing useful to show.
+    /// Quick Look (with the standard arrow-through-items navigation) — or, if
+    /// the panel is already open, closes it instead (Space/⌘Y toggle,
+    /// matching Finder). Folders are skipped — Quick Look has nothing useful
+    /// to show.
     func performQuickLook() {
+        if QuickLookPreviewer.shared.isVisible {
+            QuickLookPreviewer.shared.close()
+            return
+        }
+        extractSelectionForQuickLook { urls in
+            QuickLookPreviewer.shared.toggle(urls: urls)
+        }
+    }
+
+    /// While the panel is already open, a plain click on a different row
+    /// never calls `performQuickLook()` — it only changes `selection`. This
+    /// keeps the preview in sync with that selection instead of leaving it
+    /// stale (or, worse, still showing an item the user has since
+    /// deselected).
+    private func refreshQuickLookIfVisible() {
+        guard QuickLookPreviewer.shared.isVisible else { return }
+        // Nothing left to preview (selection cleared, or narrowed down to
+        // only folders) — close instead of leaving the last-shown item
+        // stuck on screen forever.
+        guard viewModel.visibleEntries.contains(where: { selection.contains($0.id) && !$0.isDirectory }) else {
+            QuickLookPreviewer.shared.close()
+            return
+        }
+        extractSelectionForQuickLook { urls in
+            QuickLookPreviewer.shared.preview(urls: urls)
+        }
+    }
+
+    private func extractSelectionForQuickLook(then handle: @escaping ([URL]) -> Void) {
         guard let archiveURL = viewModel.archiveURL else { return }
         let entries = viewModel.visibleEntries.filter { selection.contains($0.id) && !$0.isDirectory }
         guard !entries.isEmpty else { return }
@@ -151,7 +183,7 @@ struct ContentView: View {
                 }
             }
             guard !urls.isEmpty else { return }
-            QuickLookPreviewer.shared.preview(urls: urls)
+            handle(urls)
         }
     }
 

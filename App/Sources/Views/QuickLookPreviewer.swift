@@ -27,6 +27,25 @@ final class QuickLookPreviewer: NSObject {
         }
     }
 
+    /// Shows the panel for `urls`, or closes it if it's already open — the
+    /// Space-bar/⌘Y toggle, matching Finder (press again to close instead of
+    /// only ever reopening).
+    func toggle(urls: [URL]) {
+        if isVisible {
+            QLPreviewPanel.shared()?.orderOut(nil)
+            return
+        }
+        preview(urls: urls)
+    }
+
+    /// Closes the panel if it's open. Used when the selection is cleared or
+    /// narrowed down to only folders while the panel is already showing —
+    /// leaving the last-previewed item on screen forever would be stale.
+    func close() {
+        guard isVisible else { return }
+        QLPreviewPanel.shared()?.orderOut(nil)
+    }
+
     /// Whether the panel is currently on screen.
     var isVisible: Bool {
         QLPreviewPanel.sharedPreviewPanelExists() && (QLPreviewPanel.shared()?.isVisible ?? false)

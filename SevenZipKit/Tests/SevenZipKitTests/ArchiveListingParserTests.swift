@@ -87,4 +87,26 @@ final class ArchiveListingParserTests: XCTestCase {
             XCTAssertTrue(error is ArchiveError)
         }
     }
+
+    // Strips GNU tar's "./" path prefix and drops the bare "." root entry
+    func testNormalizesGNUTarDotSlashPrefix() throws {
+        let listing = """
+        --
+        Path = /tmp/backup.tar
+        Type = tar
+
+        ----------
+        Path = .
+        Folder = +
+
+        Path = ./asd
+        Folder = +
+
+        Path = ./asd/file.txt
+        Size = 12
+
+        """
+        let (_, entries) = try ArchiveListingParser.parse(listing)
+        XCTAssertEqual(entries.map(\.path), ["asd", "asd/file.txt"])
+    }
 }
