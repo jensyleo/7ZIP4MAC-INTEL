@@ -2,6 +2,27 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.4.3] — Toolbar customization, Benchmark Close button
+
+### Added
+
+- **Toolbar customization:** right-click the toolbar to open "Customize Toolbar…" and
+  reorder/hide buttons; the layout is persisted per window. Symbol images are cached
+  to avoid rebuilding them on every render (selection change, folder nav, extraction
+  progress tick). Persisted from `NSToolbarDelegate`'s real add/remove notifications
+  only, not on every state change — this prevents one window's stale order from
+  stomping another window's fresh reorder when two windows are open simultaneously.
+  Implemented via a hand-built `NSToolbar` bridge (in `SevenZip4MACToolbar.swift`)
+  instead of SwiftUI's `.toolbar(id:)`, which crashes on macOS 13 when a second
+  window opens. Ported from base commits `f237a5b` and `ab94c6e` (toolbar
+  customization via AppKit, code-review fixes for multi-window safety + image
+  caching).
+- **Close button in Benchmark results:** after running a benchmark and seeing the
+  results, a "Close" button now appears to the right of "Run Again", allowing you
+  to close the Benchmark window without using the window chrome close button.
+  Ported from base commit `badd750` (adapted to use `NSApp.keyWindow?.close()`
+  instead of `dismissWindow(id:)`, which is macOS 14+ only).
+
 ## [1.4.2] — Quick Look toggle/refresh, GNU tar display fix
 
 ### Fixed

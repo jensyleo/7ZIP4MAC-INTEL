@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import SevenZipKit
 
 /// The Benchmark window. Presentational — renders `viewModel.state` and starts
@@ -103,6 +104,12 @@ struct BenchmarkView: View {
                 Button(viewModel.result == nil ? "Run Benchmark" : "Run Again") { viewModel.run() }
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
+                if viewModel.result != nil {
+                    // `dismissWindow(id:)` is macOS 14+ only; closing the key
+                    // window directly reproduces the same effect here, since
+                    // this button only ever lives inside the Benchmark window.
+                    Button("Close") { NSApp.keyWindow?.close() }
+                }
             }
         }
         .padding(16)
