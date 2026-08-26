@@ -2,6 +2,23 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.4.4] — Security and stability fixes
+
+### Fixed
+
+- **Quick Look array bounds checking:** prevent out-of-bounds crash when
+  `QLPreviewPanel` calls `previewItemAt(index:)` with a concurrent selection
+  change that narrows the item list. Now returns `nil` safely if the index is
+  out of bounds.
+- **Drag staging sweep race condition:** increase the stale-folder age threshold
+  from 1 hour to 24 hours. A short threshold caused drags to be interrupted and
+  orphaned folders deleted on app restart if they were still in progress or
+  buffering (Finder doesn't signal completion). 24 hours is safe for the
+  intended use (cleanup of old staging data).
+- **Archive path validation:** reject paths containing null bytes (`\0`). While
+  7-Zip output should never produce them, malformed or corrupted archives could,
+  and allowing them could cause unexpected behavior downstream.
+
 ## [1.4.3] — Toolbar customization, Benchmark Close button
 
 ### Added
