@@ -58,7 +58,8 @@ extension QuickLookPreviewer: QLPreviewPanelDataSource {
     }
 
     nonisolated func previewPanel(_ panel: QLPreviewPanel, previewItemAt index: Int) -> (any QLPreviewItem)! {
-        items[index]
+        guard index >= 0, index < items.count else { return nil }
+        return items[index]
     }
 }
 
