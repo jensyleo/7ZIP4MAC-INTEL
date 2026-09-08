@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.4.5] — Comprehensive Help menu
+
+### Added
+
+- **Help ▸ 7ZIP4MAC Help** now opens a full help window with a searchable
+  sidebar of 10 topics (What it does, Keyboard Shortcuts, Opening/Browsing,
+  Extracting, Creating, Editing, Passwords, Testing, Toolbar, Settings),
+  replacing the old single-alert summary. Search filters topics and their
+  content in real time, matching the Finder-style help experience. Ported
+  from base commits `874ed9e` and `1675947` (`HelpTopic.swift` for content,
+  `HelpView.swift` for the searchable `NavigationSplitView` UI, plus a new
+  `Window("7ZIP4MAC Help", id: "help")` scene).
+- Adapted `ContentUnavailableView` (macOS 14+) usages to this project's own
+  `CompatUnavailableView`, keeping the Help window compatible with macOS 13.
+
 ## [1.4.4] — Security and stability fixes
 
 ### Fixed

@@ -28,6 +28,8 @@
 		3DDA5789F2F4534D8EBBF618 /* ext.icns in Resources */ = {isa = PBXBuildFile; fileRef = F428E210B11238E76C8AEDC9 /* ext.icns */; };
 		3E85614159D091F4BF1DFC95 /* PasswordPromptView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AE541D389A4A9FB280F2BE5 /* PasswordPromptView.swift */; };
 		40561945B7C1AC70C655D811 /* AssociableFormat.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4164381AC4B9936A936D47F /* AssociableFormat.swift */; };
+		9701D83F694D77717C45C4AC /* HelpTopic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 454E5BF13C6AE89B57786D70 /* HelpTopic.swift */; };
+		A697832177BABD87DFC2189E /* HelpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BEB99A99E85DC2A67A516C5 /* HelpView.swift */; };
 		42203BD89E25AC4E64603E1A /* QuickLookPreviewer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 255F3D93BBEFD8490F558E89 /* QuickLookPreviewer.swift */; };
 		445F1DE373C922CA8A095FDC /* fat.icns in Resources */ = {isa = PBXBuildFile; fileRef = 2C7BFA7A67A0D7DC9452E897 /* fat.icns */; };
 		44718170F763A265DA94040D /* udf.icns in Resources */ = {isa = PBXBuildFile; fileRef = 3948D796D33ADCECD39DB354 /* udf.icns */; };
@@ -151,6 +153,8 @@
 		C7F37C6B237CD849A5938A04 /* pkg.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = pkg.icns; sourceTree = "<group>"; };
 		D2DDBC46ED15197B08A63254 /* xar.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = xar.icns; sourceTree = "<group>"; };
 		D4164381AC4B9936A936D47F /* AssociableFormat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssociableFormat.swift; sourceTree = "<group>"; };
+		454E5BF13C6AE89B57786D70 /* HelpTopic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelpTopic.swift; sourceTree = "<group>"; };
+		9BEB99A99E85DC2A67A516C5 /* HelpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelpView.swift; sourceTree = "<group>"; };
 		D8FBD5084D1E8B932B680E74 /* SevenZipKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = SevenZipKit; path = SevenZipKit; sourceTree = SOURCE_ROOT; };
 		D97D715A29772E743467CA28 /* chm.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = chm.icns; sourceTree = "<group>"; };
 		D9D1C99976B605416CC3F33A /* iso.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = iso.icns; sourceTree = "<group>"; };
@@ -203,6 +207,7 @@
 			children = (
 				A2033E4B3E40CB4079AC3B4E /* AppSettings.swift */,
 				D4164381AC4B9936A936D47F /* AssociableFormat.swift */,
+				454E5BF13C6AE89B57786D70 /* HelpTopic.swift */,
 				9CF4F6850525A97EA58FE104 /* ProfileStore.swift */,
 				BF74263CE835744E4BD6D333 /* RecentsStore.swift */,
 				B677C8132655DCBC92B3FBD6 /* SevenZip4MacApp.swift */,
@@ -255,6 +260,7 @@
 				7193253F84D3E8B6FEF6F919 /* EntryIcon.swift */,
 				C19245B70004DBB9CB6279E4 /* EntryRowStatus.swift */,
 				3DDE56908D5C037032D27A63 /* FileListView.swift */,
+				9BEB99A99E85DC2A67A516C5 /* HelpView.swift */,
 				896B97392DF7589ED066946D /* InspectorView.swift */,
 				F46AEF7D72711420E237A3A3 /* CompatUnavailableView.swift */,
 				8AE541D389A4A9FB280F2BE5 /* PasswordPromptView.swift */,
@@ -475,6 +481,7 @@
 				BB940737D919B229C4E4AAD5 /* ArchiveOpenPanel.swift in Sources */,
 				AC5EAAC377B394D7320C41A0 /* ArchiveViewModel.swift in Sources */,
 				40561945B7C1AC70C655D811 /* AssociableFormat.swift in Sources */,
+				9701D83F694D77717C45C4AC /* HelpTopic.swift in Sources */,
 				7BCE92C8029826EF592BCB28 /* AutomationService.swift in Sources */,
 				94C7E48D8A37DAE4F420EB1A /* BenchmarkView.swift in Sources */,
 				194993FFB8CE57D8429459EB /* BenchmarkViewModel.swift in Sources */,
@@ -490,6 +497,7 @@
 				0108922640AD3F6564D60974 /* EntryRowStatus.swift in Sources */,
 				BEFBDB4CCA2FC0678925836E /* FileAssociationService.swift in Sources */,
 				FE7A082EE02E5B964C9F9387 /* FileListView.swift in Sources */,
+				A697832177BABD87DFC2189E /* HelpView.swift in Sources */,
 				38BD03CF2D7EBA78927373AC /* InspectorView.swift in Sources */,
 				438A98CDB1DB103A8060E1F6 /* CompatUnavailableView.swift in Sources */,
 				3E85614159D091F4BF1DFC95 /* PasswordPromptView.swift in Sources */,
@@ -592,7 +600,7 @@
 				ARCHS = x86_64;
 				VALID_ARCHS = x86_64;
 				ONLY_ACTIVE_ARCH = NO;
-				MARKETING_VERSION = 1.4.4;
+				MARKETING_VERSION = 1.4.5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jensyleo.sevenzip4mac;
 				PRODUCT_NAME = 7ZIP4MAC;
 				SDKROOT = macosx;
@@ -686,7 +694,7 @@
 				ARCHS = x86_64;
 				VALID_ARCHS = x86_64;
 				ONLY_ACTIVE_ARCH = NO;
-				MARKETING_VERSION = 1.4.4;
+				MARKETING_VERSION = 1.4.5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jensyleo.sevenzip4mac;
 				PRODUCT_NAME = 7ZIP4MAC;
 				SDKROOT = macosx;
