@@ -2,6 +2,46 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.4.6] — Fix .tar.bz2/.tar.gz/.tar.xz showing empty, argument injection fix
+
+### Fixed
+
+- **`.tar.bz2`/`.tar.gz`/`.tar.xz` no longer show empty on open.** bzip2/gzip/xz
+  are single-stream compressors with no entry list of their own — 7-Zip
+  reported zero (or, for gzip, exactly one unopenable) entries for the
+  compressed stream itself, instead of the real `.tar` contents inside it.
+  Opening the archive now transparently extracts that stream to a staging
+  directory and lists whatever comes out, recursing if that's itself another
+  single-stream layer. `Archive` gains `effectiveURL` (what list/extract/test
+  actually read from) and `stagingDirectory` (cleaned up on close/reopen),
+  while the file the user opened stays `url` for display. Extract and Test
+  now read from `effectiveURL`; Delete/Move are disabled for these archives
+  (nothing sensible to write back into). Quick Look and drag-to-Finder are
+  adapted for this fork's single-window architecture: `effectiveArchiveURL`
+  is read directly from the one `ArchiveViewModel` at the call site, rather
+  than through the base's multi-window `OpenArchiveWindowRegistry` (which
+  this fork has no use for). Ported from base commits `34472f8` and `36802d8`.
+  This is a real cost, not a regression: opening one of these archives now
+  needs to decompress the whole stream first (proportional to its size)
+  instead of failing instantly with an empty listing — the same trade-off
+  the base made.
+- **Argument injection via entry names starting with `-`:** an archive entry
+  named e.g. `-weird.txt` could be misread by `7zz` as a flag instead of a
+  file name. Every command that appends user/archive-controlled paths
+  (extract/test/delete/rename/compress) now inserts `--` (end-of-options
+  marker) first.
+- **`AutomationService.compress`** (Shortcuts/AppleScript) no longer silently
+  falls back to `.7z` for an unrecognized destination extension — it now
+  throws a clear error, matching the fix already applied to the in-app
+  Add/Copy path.
+
+Ported from base commit `f5dd085` (security-relevant parts only — the dead
+code cleanup/refactor parts of that commit were skipped as non-functional).
+Verified: 46/46 SevenZipKit tests pass; confirmed programmatically that a
+real `.tar.gz` and `.tar.bz2` now list their true contents (6 entries)
+instead of 1; verified on real hardware that Delete/Move show a clear
+message instead of crashing on an unwrapped archive.
+
 ## [1.4.5] — Comprehensive Help menu
 
 ### Added

@@ -167,7 +167,11 @@ struct ContentView: View {
     }
 
     private func extractSelectionForQuickLook(then handle: @escaping ([URL]) -> Void) {
-        guard let archiveURL = viewModel.archiveURL else { return }
+        // `effectiveArchiveURL`, not `archiveURL`: for an unwrapped single-
+        // stream archive (`.tar.bz2`, `.tar.gz`, …) the real, browsable
+        // archive is the one extracted inside it, not the compressor 7-Zip
+        // can't select individual entries from.
+        guard let archiveURL = viewModel.effectiveArchiveURL else { return }
         let entries = viewModel.visibleEntries.filter { selection.contains($0.id) && !$0.isDirectory }
         guard !entries.isEmpty else { return }
         let password = viewModel.sessionPassword
