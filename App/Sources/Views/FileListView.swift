@@ -63,7 +63,12 @@ struct FileListView: View {
                 .help(entry.path)
                 .modifier(EntryDragModifier(
                     entry: entry,
-                    archiveURL: viewModel.archiveURL,
+                    // `effectiveArchiveURL`, not `archiveURL`: for an
+                    // unwrapped single-stream archive (`.tar.bz2`, `.tar.gz`,
+                    // …) the real, browsable archive is the one extracted
+                    // inside it, not the compressor 7-Zip can't select
+                    // individual entries from.
+                    archiveURL: viewModel.effectiveArchiveURL,
                     password: viewModel.sessionPassword,
                     draggedEntries: {
                         // Dragging a row that's part of a larger selection
