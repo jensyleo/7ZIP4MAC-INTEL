@@ -138,33 +138,72 @@ final class SevenZip4MACToolbarController: NSObject, NSToolbarDelegate {
             guard let spec = actionsByID[item.itemIdentifier.rawValue] else { continue }
             item.toolTip = spec.help
             item.label = spec.title
-            item.isEnabled = spec.isEnabled
+            // Always true — see `toolbar(_:itemForItemIdentifier:...)`'s own
+            // doc comment on why `item.isEnabled` never reflects `spec.isEnabled`.
+            item.isEnabled = true
             if let menuItem = item as? NSMenuToolbarItem, case let .menu(build) = spec.kind {
                 menuItem.menu = build()
             } else if let systemImage = spec.systemImage {
-                item.image = symbolImage(systemImage, isDestructive: spec.isDestructive)
+                item.image = symbolImage(systemImage, isDestructive: spec.isDestructive, isEnabled: spec.isEnabled)
             }
         }
     }
 
     /// System symbol images never change per-window, so they're cached by
-    /// (name, isDestructive) instead of rebuilt on every `setActions` call —
-    /// which otherwise fires on every render (a selection change, a folder
-    /// navigation, an extraction progress tick), re-allocating an
-    /// `NSImage`/`SymbolConfiguration` pair for all ~14 toolbar items each
-    /// time even though at most one or two actually changed.
-    private func symbolImage(_ name: String, isDestructive: Bool) -> NSImage? {
-        let key = "\(name)|\(isDestructive)" as NSString
+    /// (name, isDestructive, isEnabled) instead of rebuilt on every
+    /// `setActions` call — which otherwise fires on every render (a
+    /// selection change, a folder navigation, an extraction progress tick),
+    /// re-allocating an `NSImage`/`SymbolConfiguration` pair for all ~14
+    /// toolbar items each time even though at most one or two actually
+    /// changed.
+    ///
+    /// `isEnabled` bakes the disabled look directly into the returned
+    /// bitmap (see `dimmed(_:)`) instead of relying on `NSToolbarItem`'s own
+    /// dynamic dimming — a disabled icon's dimming can briefly drop out on
+    /// any redraw, showing the full-brightness "enabled" artwork for a
+    /// frame or two before reverting; a fixed `SymbolConfiguration` on the
+    /// image alone doesn't fix that (points at AppKit's own disabled-state
+    /// rendering, not the image's configuration) — baking the dimming into
+    /// the bitmap sidesteps that dynamic path entirely.
+    ///
+    /// A visibly larger toolbar glyph than AppKit's own default point size.
+    /// Safe to bake into the image now: a fixed configuration only fought
+    /// `NSToolbarItem`'s *dynamic* disabled-state dimming, which no longer
+    /// runs at all now that `item.isEnabled` is always `true` — nothing here
+    /// depends on that dynamic path anymore, so a fixed size doesn't
+    /// resurrect the flicker it caused before.
+    private static let symbolSize = NSImage.SymbolConfiguration(pointSize: 19, weight: .medium)
+
+    private func symbolImage(_ name: String, isDestructive: Bool, isEnabled: Bool) -> NSImage? {
+        let key = "\(name)|\(isDestructive)|\(isEnabled)" as NSString
         if let cached = Self.symbolCache.object(forKey: key) { return cached }
         guard let image = NSImage(systemSymbolName: name, accessibilityDescription: nil) else { return nil }
-        let result: NSImage
+        var config = Self.symbolSize
         if isDestructive {
-            let config = NSImage.SymbolConfiguration(paletteColors: [.systemRed])
-            result = image.withSymbolConfiguration(config) ?? image
-        } else {
-            result = image
+            config = config.applying(NSImage.SymbolConfiguration(paletteColors: [.systemRed]))
+        }
+        var result = image.withSymbolConfiguration(config) ?? image
+        if !isEnabled {
+            result = Self.dimmed(result)
         }
         Self.symbolCache.setObject(result, forKey: key)
+        return result
+    }
+
+    /// Renders `image` at reduced opacity into a fresh bitmap — a disabled
+    /// toolbar icon's look baked in up front, not left to `NSToolbarItem`'s
+    /// own (unreliable, see `symbolImage`'s own doc comment) disabled-state
+    /// dimming. `0.35` is a plain visual match for the system's own
+    /// disabled-icon opacity, not a value with any other significance.
+    private static func dimmed(_ image: NSImage) -> NSImage {
+        let result = NSImage(size: image.size)
+        result.lockFocus()
+        image.draw(
+            in: NSRect(origin: .zero, size: image.size),
+            from: .zero, operation: .sourceOver, fraction: 0.35
+        )
+        result.unlockFocus()
+        result.isTemplate = image.isTemplate
         return result
     }
 
@@ -206,7 +245,7 @@ final class SevenZip4MACToolbarController: NSObject, NSToolbarDelegate {
             item.toolTip = spec.help
             item.menu = build()
             if let systemImage = spec.systemImage {
-                item.image = symbolImage(systemImage, isDestructive: spec.isDestructive)
+                item.image = symbolImage(systemImage, isDestructive: spec.isDestructive, isEnabled: spec.isEnabled)
             }
             item.showsIndicator = true
             return item
@@ -216,17 +255,28 @@ final class SevenZip4MACToolbarController: NSObject, NSToolbarDelegate {
         item.label = spec.title
         item.paletteLabel = spec.title
         item.toolTip = spec.help
-        item.isEnabled = spec.isEnabled
+        // Deliberately always true — never `spec.isEnabled`. `NSToolbarItem`
+        // computes its own dimmed appearance dynamically from `isEnabled`,
+        // and that computation can intermittently drop out on redraw,
+        // briefly flashing full-brightness "enabled" artwork for an item
+        // that's actually disabled. Leaving `isEnabled` always true means
+        // AppKit never computes a dimmed state at all — the disabled *look*
+        // comes entirely from `symbolImage`'s own pre-dimmed bitmap instead,
+        // which is static and can't flicker. `performAction` below enforces
+        // the real enabled/disabled behavior (whether the click actually
+        // does anything), so nothing here regresses actual functionality.
+        item.isEnabled = true
         item.target = self
         item.action = #selector(performAction(_:))
         if let systemImage = spec.systemImage {
-            item.image = symbolImage(systemImage, isDestructive: spec.isDestructive)
+            item.image = symbolImage(systemImage, isDestructive: spec.isDestructive, isEnabled: spec.isEnabled)
         }
         return item
     }
 
     @objc private func performAction(_ sender: NSToolbarItem) {
-        guard case let .button(action) = actionsByID[sender.itemIdentifier.rawValue]?.kind else { return }
+        guard let spec = actionsByID[sender.itemIdentifier.rawValue], spec.isEnabled else { return }
+        guard case let .button(action) = spec.kind else { return }
         action()
     }
 }
@@ -245,20 +295,41 @@ struct ToolbarHost: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSView, context: Context) {
-        // `nsView.window` is nil until AppKit has actually attached this
-        // view into a window's view hierarchy, which hasn't necessarily
-        // happened yet on the very first `updateNSView` call — deferred to
-        // the next run-loop turn, and bursts of renders are coalesced into
-        // a single pending apply.
         context.coordinator.pendingActions = actions
+        // Exactly one of these ever actually applies per burst of renders:
+        // if a deferred apply from an earlier call is already scheduled,
+        // this call only refreshes `pendingActions` (picked up when that
+        // scheduled apply runs) and returns — applying immediately here
+        // *as well*, on a still-Bool-guarded second path, was a real race
+        // that could briefly run the toolbar with a stale `actions` snapshot
+        // (every item shown enabled, mid-launch, for exactly one frame)
+        // right before the already-scheduled apply corrected it a moment
+        // later.
         guard !context.coordinator.isScheduled else { return }
-        context.coordinator.isScheduled = true
         let coordinator = context.coordinator
-        DispatchQueue.main.async { [weak nsView] in
+        func apply(on view: NSView) {
             coordinator.isScheduled = false
-            guard let nsView, let window = nsView.window, let actions = coordinator.pendingActions else { return }
+            guard let window = view.window, let actions = coordinator.pendingActions else { return }
             controller.install(on: window, actions: actions)
             controller.setActions(actions)
+        }
+        // `nsView.window` is nil until AppKit has actually attached this
+        // view into a window's view hierarchy — true on the very first
+        // `updateNSView` call, but SwiftUI's initial layout pass re-invokes
+        // this several times before the window is ever shown on screen, so
+        // the window is very often already available by one of those later
+        // calls. Applying immediately whenever that's already true (rather
+        // than always deferring one run-loop turn via
+        // `DispatchQueue.main.async`) closes the window where the toolbar
+        // was still empty right as the window first became visible.
+        if nsView.window != nil {
+            apply(on: nsView)
+        } else {
+            coordinator.isScheduled = true
+            DispatchQueue.main.async { [weak nsView] in
+                guard let nsView else { coordinator.isScheduled = false; return }
+                apply(on: nsView)
+            }
         }
     }
 

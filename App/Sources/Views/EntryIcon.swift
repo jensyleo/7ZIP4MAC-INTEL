@@ -35,6 +35,17 @@ enum IconProvider {
         return workspaceIcon(for: type, key: type.identifier)
     }
 
+    // NOTE: the base fork's "resize to 16×16 at cache time" optimization
+    // (meant to fix icon flicker on Table-row hover) is deliberately NOT
+    // ported here. Both approaches tried — `NSImage.lockFocus()`/
+    // `unlockFocus()` and `NSImage(size:flipped:drawingHandler:)` — crashed
+    // the app with an uncaught AppKit exception (`objc_exception_throw`
+    // inside `-[NSImage drawInRect:...]`/`-[NSImageRep drawInRect:...]`)
+    // every time `NSWorkspace.shared.icon(for:)`'s large multi-representation
+    // image was drawn into a smaller context, confirmed via crash log on
+    // real hardware, reproducible on demand. Caching the unmodified icon (as
+    // before) is the known-safe, non-crashing behavior; the hover flicker is
+    // a cosmetic issue, not worth risking a crash to fix.
     private static func workspaceIcon(for type: UTType, key: String) -> NSImage {
         lock.lock()
         if let cached = cache[key] { lock.unlock(); return cached }

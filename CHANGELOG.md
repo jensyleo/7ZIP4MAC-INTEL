@@ -2,6 +2,66 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.4.7] — Security fixes, selection navigation, UI polish
+
+### Fixed
+
+- **Security: path-traversal in drag-out and in-archive Copy.** `DragOut.extract`
+  (drag an entry out to Finder) and `ArchiveViewModel.copyEntry` (in-archive
+  Copy) rebuilt the extracted item's filesystem path from an untrusted entry
+  name read out of the opened archive. A crafted entry name like
+  `../../../../Users/me/.ssh/id_rsa` made that path resolve outside the
+  scratch directory to a real file on disk, which the drag/copy then *moved* —
+  silently relocating or exfiltrating an arbitrary file just by dragging an
+  entry out or duplicating it within the archive. Both now discover the real
+  extracted item via `contentsOfDirectory(at:)`, the same safe pattern
+  `ArchiveService`'s tar-unwrap already used, instead of trusting the name.
+- **Security: path-traversal in Shortcuts intents.** `CompressFilesIntent`
+  and `ExtractArchiveIntent` built file paths directly from
+  Shortcuts-supplied `IntentFile.filename`, with the same traversal risk as
+  above — a crafted Shortcut could write outside the scratch directory. Now
+  sanitized with `lastPathComponent` before use.
+- **Arrow-key navigation in the file list:** Up/Down move the selection one
+  row at a time (Shift extends a contiguous range), Right enters the
+  selected folder, Left goes up a level — matching Finder/Explorer.
+  Cmd-Shift-Up/Down extends the selection to the first/last row (Finder's
+  own shortcut). Fixed a bug where repeated Shift-arrow presses re-selected
+  just the same two rows instead of growing the range, and another where
+  Cmd-clicking a row to add it to an existing selection got wiped out by a
+  later Shift/Cmd-Shift range extension. The ".." parent-link row is now
+  excluded from all keyboard-driven selection.
+- **Tiny click area on short row names** (".." to go up in particular): the
+  whole row is now clickable, not just the drawn icon+text.
+- **".." now acts on a single click** instead of requiring a double-click,
+  matching how it reads visually (a lone back-arrow control, not a row you
+  select-then-activate).
+- **Toolbar icon flicker:** disabled toolbar icons no longer intermittently
+  flash full-brightness "enabled" artwork — the dimmed look is now baked
+  into a static bitmap instead of relying on `NSToolbarItem`'s own dynamic
+  (and unreliable) disabled-state rendering. Toolbar icons enlarged
+  (pointSize 19) per feedback. Fixed a smaller race in the toolbar host
+  view that could briefly apply a stale action snapshot.
+
+### Not ported
+
+- The base's "icon flicker on hover" fix (pre-resizing `NSWorkspace`
+  file-type icons to 16×16 at cache time) reproducibly **crashed the app**
+  on this target — confirmed via crash log (`objc_exception_throw` deep
+  inside `-[NSImage drawInRect:...]`) with both the legacy
+  `lockFocus()`/`unlockFocus()` approach and the modern
+  `NSImage(size:flipped:drawingHandler:)` alternative. Reverted to caching
+  the unmodified icon (pre-fix behavior) — the hover flicker is cosmetic,
+  not worth risking a crash to fix. The dead-code cleanup and file-existence
+  dedup refactors from the same base commits were skipped as low-value,
+  higher-risk-to-port-faithfully changes with no functional benefit.
+
+Ported from base commits `1fe56fe`, `fb6778a`, `6b2579f`, `8be0427`,
+`0cd0f50`, `63a8c54`, `7a4a042`, `716179c`, `efa9b99` (final consolidated
+state of each touched file, not each incremental commit). 46/46 SevenZipKit
+tests pass. Verified on real hardware: no crashes across repeated opens of
+a small `.zip`, a `.zip` with 500 entries, and a 2.7 GB `.iso` with 1,810
+entries.
+
 ## [1.4.6] — Fix .tar.bz2/.tar.gz/.tar.xz showing empty, argument injection fix
 
 ### Fixed
