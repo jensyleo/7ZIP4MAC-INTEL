@@ -516,7 +516,19 @@ public final class ArchiveViewModel: ObservableObject {
                     progress: { _ in }
                 )
 
-                let extractedURL = scratch.appendingPathComponent(path)
+                // Deliberately not `scratch.appendingPathComponent(path)`:
+                // `path` is an untrusted entry name from inside the archive,
+                // and something like "../../../../Users/me/.ssh/id_rsa"
+                // would resolve outside `scratch` to a real file — which the
+                // `moveItem` below would then relocate into the archive
+                // being edited. 7-Zip itself never writes outside `scratch`
+                // on extraction, so the single item it actually produced
+                // there is always the real, safe result — the same pattern
+                // `ArchiveService`'s tar-unwrap and `DragOut.extract` rely on.
+                let extractedItems = try FileManager.default.contentsOfDirectory(at: scratch, includingPropertiesForKeys: nil)
+                guard let extractedURL = extractedItems.first, extractedItems.count == 1 else {
+                    throw ArchiveError.operationFailed(code: -1, message: "Extraction did not produce the expected single item.")
+                }
                 let stagedURL = scratch.appendingPathComponent(newPath)
                 try FileManager.default.createDirectory(at: stagedURL.deletingLastPathComponent(), withIntermediateDirectories: true)
                 if extractedURL.standardizedFileURL != stagedURL.standardizedFileURL {

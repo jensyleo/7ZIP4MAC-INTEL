@@ -20,6 +20,21 @@ struct FileListView: View {
     /// range selection (standard macOS/Windows convention).
     @State private var selectionAnchor: ArchiveEntry.ID?
 
+    /// The row the keyboard cursor is currently on — the *moving* end of a
+    /// Shift-arrow range, as opposed to `selectionAnchor`, its fixed end.
+    /// Without tracking this separately, `moveSelection` had to derive the
+    /// current position from the anchor every time, so repeated Shift-arrow
+    /// presses kept re-selecting just anchor±1 instead of growing the range.
+    @State private var focusedID: ArchiveEntry.ID?
+
+    /// The selection that existed *before* the current anchor's range started
+    /// being extended — preserved underneath every Shift/Cmd-Shift range so
+    /// extending doesn't discard it. Reset to empty whenever a plain
+    /// click/arrow picks a brand-new single-row anchor (nothing to
+    /// preserve), and snapshotted to the post-toggle selection on a Cmd-click
+    /// (so a row added out of band survives a later range extension).
+    @State private var baseSelection: Set<ArchiveEntry.ID> = []
+
     /// Tracks the last click's target/time to detect double-clicks ourselves.
     /// More reliable than reading `NSEvent.currentEvent?.clickCount` inside a
     /// Button action, which occasionally raced SwiftUI's event dispatch and
@@ -58,6 +73,14 @@ struct FileListView: View {
                         EntryIcon(entry: entry)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    // Without this, the button's hit area only covers its
+                    // actual drawn content (icon + text) — the `.frame`
+                    // above only stretches what's painted, not what's
+                    // clickable. Barely noticeable for a long file name that
+                    // already fills the column, but a short name (".." to go
+                    // up a folder is the extreme case) left most of the row
+                    // dead space.
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .help(entry.path)
@@ -149,10 +172,103 @@ struct FileListView: View {
             case 51 where !selection.isEmpty, 117 where !selection.isEmpty: // kVK_Delete, kVK_ForwardDelete
                 onDeleteSelection()
                 return nil
+            case 125 where !viewModel.visibleEntries.isEmpty: // kVK_DownArrow
+                if event.modifierFlags.contains([.command, .shift]) {
+                    extendSelectionToEdge(last: true)
+                } else {
+                    moveSelection(by: 1, extend: event.modifierFlags.contains(.shift))
+                }
+                return nil
+            case 126 where !viewModel.visibleEntries.isEmpty: // kVK_UpArrow
+                if event.modifierFlags.contains([.command, .shift]) {
+                    extendSelectionToEdge(last: false)
+                } else {
+                    moveSelection(by: -1, extend: event.modifierFlags.contains(.shift))
+                }
+                return nil
+            case 124: // kVK_RightArrow — enter the selected folder, Finder-style
+                if let entry = singleSelectedEntry, entry.isDirectory, !entry.isParentLink {
+                    activate(entry)
+                    return nil
+                }
+                return event
+            case 123 where !viewModel.currentFolder.isEmpty: // kVK_LeftArrow — go up a level, Finder-style
+                selection = []
+                viewModel.goUp()
+                return nil
             default:
                 return event
             }
         }
+    }
+
+    /// Moves the selection up/down by `delta` row(s) among
+    /// `viewModel.visibleEntries` — Up/Down arrow navigation, since `Table`'s
+    /// own built-in arrow handling (which would otherwise do this for free)
+    /// never gets a chance to run: the same custom `Button`-per-cell design
+    /// that requires `installDeleteKeyMonitor`'s `NSEvent` monitor above
+    /// (rather than `.onKeyPress`) also means `Table` isn't driving
+    /// selection itself. No current selection moves to the first row going
+    /// down or the last row going up, matching Finder's own List view.
+    /// `extend` (Shift held) grows/shrinks a contiguous range from
+    /// `selectionAnchor`, the same anchor plain Shift-click already uses.
+    private func moveSelection(by delta: Int, extend: Bool) {
+        // The ".." row (if present) is index 0 of `visibleEntries`, but it's
+        // navigation chrome, not a selectable item — Finder doesn't let you
+        // select "go up a level" as part of a multi-selection either.
+        // Without this filter, arrowing/extending to the top of the list
+        // could select "..", corrupting whatever the selection was meant to
+        // be used for.
+        let rows = viewModel.visibleEntries.filter { !$0.isParentLink }
+        guard !rows.isEmpty else { return }
+        let currentIndex: Int
+        if let focused = focusedID, let index = rows.firstIndex(where: { $0.id == focused }) {
+            currentIndex = index
+        } else if let anchor = selectionAnchor, let index = rows.firstIndex(where: { $0.id == anchor }) {
+            currentIndex = index
+        } else if let selected = selection.first, let index = rows.firstIndex(where: { $0.id == selected }) {
+            currentIndex = index
+        } else {
+            currentIndex = delta > 0 ? -1 : rows.count
+        }
+        let newIndex = min(max(currentIndex + delta, 0), rows.count - 1)
+        let newEntry = rows[newIndex]
+        focusedID = newEntry.id
+        if extend, let anchor = selectionAnchor, let anchorIndex = rows.firstIndex(where: { $0.id == anchor }) {
+            selection = baseSelection.union(Self.selectRange(from: anchorIndex, to: newIndex, in: rows))
+        } else {
+            selection = [newEntry.id]
+            selectionAnchor = newEntry.id
+            baseSelection = []
+        }
+    }
+
+    /// ⌘⇧↓ / ⌘⇧↑ — Finder's own "extend selection to the last/first item"
+    /// shortcut. Like plain Shift-arrow, this grows the range from
+    /// `selectionAnchor`, but jumps straight to the edge instead of moving
+    /// one row at a time.
+    private func extendSelectionToEdge(last: Bool) {
+        // Same exclusion as `moveSelection` — ".." is never a selectable item.
+        let rows = viewModel.visibleEntries.filter { !$0.isParentLink }
+        guard !rows.isEmpty else { return }
+        let edgeEntry = last ? rows[rows.count - 1] : rows[0]
+        let anchor = selectionAnchor ?? focusedID ?? selection.first ?? edgeEntry.id
+        if selectionAnchor == nil { selectionAnchor = anchor }
+        focusedID = edgeEntry.id
+        guard let anchorIndex = rows.firstIndex(where: { $0.id == anchor }) else {
+            selection = baseSelection.union([edgeEntry.id])
+            return
+        }
+        let edgeIndex = last ? rows.count - 1 : 0
+        selection = baseSelection.union(Self.selectRange(from: anchorIndex, to: edgeIndex, in: rows))
+    }
+
+    /// Builds a contiguous-range selection between two row indices (inclusive
+    /// on both ends, order-independent) — the anchor-based range logic shared
+    /// by Shift-arrow (`moveSelection`) and Shift-click (`handleClick`).
+    private static func selectRange(from anchorIndex: Int, to targetIndex: Int, in rows: [ArchiveEntry]) -> Set<ArchiveEntry.ID> {
+        let range = anchorIndex < targetIndex ? anchorIndex...targetIndex : targetIndex...anchorIndex
+        return Set(rows[range].map(\.id))
     }
 
     private func removeDeleteKeyMonitor() {
@@ -184,6 +300,15 @@ struct FileListView: View {
     /// clicked row, and a second click within the double-click interval
     /// activates the row instead of just selecting it.
     private func handleClick(on entry: ArchiveEntry) {
+        // The ".." row reads visually as a button (a lone back-arrow glyph,
+        // no real name), not as a content row you select-then-activate —
+        // Windows Explorer's own ".." entry behaves the same way. A single
+        // click goes up immediately instead of only selecting and waiting
+        // for a second click.
+        if entry.isParentLink {
+            activate(entry)
+            return
+        }
         // Double-click detection: our own clock, not `NSEvent.clickCount`.
         let now = Date()
         let isDoubleClick = entry.id == lastClickedID
@@ -196,9 +321,11 @@ struct FileListView: View {
             return
         }
 
+        focusedID = entry.id
         guard let event = NSApp.currentEvent else {
             selection = [entry.id]
             selectionAnchor = entry.id
+            baseSelection = []
             return
         }
 
@@ -210,15 +337,18 @@ struct FileListView: View {
                 selection.insert(entry.id)
             }
             selectionAnchor = entry.id
+            // A later Shift/Cmd-Shift range extension starts fresh from
+            // *this* row, but shouldn't discard what Cmd-click just built up.
+            baseSelection = selection
         } else if event.modifierFlags.contains(.shift),
                   let anchor = selectionAnchor,
                   let anchorIndex = rows.firstIndex(where: { $0.id == anchor }),
                   let clickedIndex = rows.firstIndex(where: { $0.id == entry.id }) {
-            let range = anchorIndex < clickedIndex ? anchorIndex...clickedIndex : clickedIndex...anchorIndex
-            selection = Set(rows[range].map(\.id))
+            selection = baseSelection.union(Self.selectRange(from: anchorIndex, to: clickedIndex, in: rows))
         } else {
             selection = [entry.id]
             selectionAnchor = entry.id
+            baseSelection = []
         }
     }
 
