@@ -2,6 +2,67 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.4.8] — Fix nested-entry drag/copy, symlink escape, .app extraction
+
+### Fixed
+
+- **Regression fix: dragging/copying a nested entry pulled its whole folder
+  chain.** The path-traversal fix in the previous release located the
+  extracted item by assuming it landed directly inside the scratch/staging
+  directory. For an entry nested inside the archive (e.g.
+  `docs/reports/file.pdf`), 7-Zip preserves that structure on extraction, so
+  the fix was actually returning the top-level ancestor folder (`docs`)
+  instead of the file — dragging out or copying such an entry recreated its
+  whole ancestor folder chain at the destination instead of just the item
+  itself. `DragOut.locateExtractedItem` now descends through the real
+  directories 7-Zip wrote, one level per path component of the entry's
+  name, still without ever building a path by concatenating the untrusted
+  string. `ArchiveViewModel.copyEntry` now shares this same helper. Verified
+  with a real 4-level-deep nested entry.
+- **Security: reveal-target path traversal.** Extraction's "reveal in
+  Finder" target (what Finder is told to select after extracting) built its
+  non-flattened paths straight from untrusted entry names — a crafted
+  `../../etc/passwd` entry could point Finder's post-extraction selection
+  outside the destination folder. Low impact (only a Finder-selection URL,
+  never read/written/moved), but now sanitized the same way as the actual
+  extraction path.
+- **Security: symlinks that escape extraction.** Drag-out (and Quick Look,
+  which reads through the same extraction) now refuses an extracted item
+  that's a symlink whose target resolves outside the scratch directory it
+  was extracted into. 7-Zip already blocks most such targets itself, but
+  this closes the same gap in depth: a symlink entry named to look
+  innocuous, pointing at e.g. `~/.ssh/id_rsa`, would otherwise have its
+  target's real content silently rendered by Quick Look.
+- **`.app` bundle extraction and drag.** Extracting or dragging out any
+  entry containing a symlink chained through another symlink — the normal
+  shape of a macOS `.app` bundle's nested `.framework` dependencies —
+  failed outright: 7-Zip reports its own zip-slip defense (refusing to
+  recreate just those specific links) as a fatal error, even though
+  everything else extracts fine. Now treated as a partial success instead
+  of throwing. Also: dragging a folder named `*.app`/`*.bundle`/`*.framework`
+  now declares its real package UTI instead of a generic folder type —
+  Finder was silently refusing the drop entirely for these.
+- Tightened the "dangerous link" detection (above) to anchor on 7-Zip's own
+  fixed error-message prefix instead of a bare substring match, since the
+  rest of that line is the archive's own (untrusted) entry name/target.
+
+### Not ported
+
+- The base's fix for a double-window flash on cold-launch open
+  (`AppDelegate`/`ArchiveWindowRoot` scaffold-window tracking) doesn't apply
+  here: that's a `WindowGroup`-specific failure mode, and this fork uses a
+  single `Window` scene, which never spawns a scaffold window for an "open
+  this file" request in the first place.
+- Pure dedup/cleanup refactors (`SevenZipRunner`'s shared process setup,
+  `SevenZipBridge`'s `throwIfFatal`/`ProcessResult.diagnosticMessage`
+  helpers) were skipped — no functional change, and higher risk to port
+  faithfully than the benefit justifies.
+
+Ported from base commits `f390f22`, `48c7c31`, `93e18ed`, `51520c2`
+(security-relevant and bug-fix parts only). 46/46 SevenZipKit tests pass.
+Verified on real hardware: no crashes, confirmed the nested-entry fix
+against a real 4-level-deep archive entry.
+
 ## [1.4.7] — Security fixes, selection navigation, UI polish
 
 ### Fixed

@@ -297,7 +297,14 @@ public final class ArchiveViewModel: ObservableObject {
         } else if flattenPaths {
             revealTargets = selectedPaths.map { destination.appendingPathComponent(($0 as NSString).lastPathComponent) }
         } else {
-            revealTargets = selectedPaths.map { destination.appendingPathComponent($0) }
+            // `selectedPaths` are entry names from inside the archive, not
+            // necessarily trustworthy — a crafted "../../etc/passwd" would
+            // otherwise make Finder reveal a location outside `destination`.
+            // 7-Zip itself sanitizes ".."/"." out of the real extraction
+            // path, so this mirrors that to keep pointing Finder at where
+            // the actual extracted file ends up, rather than trusting the
+            // raw entry name.
+            revealTargets = selectedPaths.map { destination.appendingPathComponent(Self.sanitizedRelativePath($0)) }
         }
 
         extractTask = Task { [serviceProvider] in
@@ -521,14 +528,11 @@ public final class ArchiveViewModel: ObservableObject {
                 // and something like "../../../../Users/me/.ssh/id_rsa"
                 // would resolve outside `scratch` to a real file — which the
                 // `moveItem` below would then relocate into the archive
-                // being edited. 7-Zip itself never writes outside `scratch`
-                // on extraction, so the single item it actually produced
-                // there is always the real, safe result — the same pattern
-                // `ArchiveService`'s tar-unwrap and `DragOut.extract` rely on.
-                let extractedItems = try FileManager.default.contentsOfDirectory(at: scratch, includingPropertiesForKeys: nil)
-                guard let extractedURL = extractedItems.first, extractedItems.count == 1 else {
-                    throw ArchiveError.operationFailed(code: -1, message: "Extraction did not produce the expected single item.")
-                }
+                // being edited. This walks the real extracted structure
+                // instead — see `DragOut.locateExtractedItem`'s doc comment,
+                // including why it also has to handle `path` naming a nested
+                // entry.
+                let extractedURL = try DragOut.locateExtractedItem(forEntryPath: path, in: scratch)
                 let stagedURL = scratch.appendingPathComponent(newPath)
                 try FileManager.default.createDirectory(at: stagedURL.deletingLastPathComponent(), withIntermediateDirectories: true)
                 if extractedURL.standardizedFileURL != stagedURL.standardizedFileURL {
@@ -565,6 +569,14 @@ public final class ArchiveViewModel: ObservableObject {
 
     private static func describe(_ error: Error) -> String {
         (error as? ArchiveError)?.localizedDescription ?? error.localizedDescription
+    }
+
+    /// Strips ".."/"." components from an archive entry's path — used only
+    /// to guess where 7-Zip's own extraction (which does the same
+    /// sanitizing for real) will have put a file, never to read/write
+    /// anything itself. See the `revealTargets` call site.
+    private static func sanitizedRelativePath(_ path: String) -> String {
+        path.split(separator: "/").filter { $0 != ".." && $0 != "." && !$0.isEmpty }.joined(separator: "/")
     }
 
     /// Whether `path` already names an entry in `entries` — trailing slashes
