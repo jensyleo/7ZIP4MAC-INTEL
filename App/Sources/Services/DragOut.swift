@@ -82,21 +82,75 @@ enum DragOut {
             overwritePolicy: .overwrite
         )
         try await service.extract(request) { _ in }
-
-        // Deliberately *not* `temp.appending(path: entryPath)`: `entryPath`
-        // is an untrusted string from inside a possibly-malicious archive,
-        // and a name like "../../../../Users/me/.ssh/id_rsa" would resolve
-        // outside `temp` to a real file on disk — which the drag then
-        // *moves*, silently relocating or exfiltrating whatever that
-        // traversal landed on. 7-Zip itself never writes outside `temp` —
-        // it sanitizes `../` on extraction — so the single item it actually
-        // wrote there is always the real, safe result, the same pattern
-        // `ArchiveService`'s tar-unwrap already relies on.
-        let items = try FileManager.default.contentsOfDirectory(at: temp, includingPropertiesForKeys: nil)
-        guard let extracted = items.first, items.count == 1 else {
-            throw ArchiveError.operationFailed(code: -1, message: "Extraction did not produce the expected single item.")
-        }
+        let extracted = try locateExtractedItem(forEntryPath: entryPath, in: temp)
+        try Self.rejectSymlinkEscapingScratch(extracted, scratch: temp)
         return extracted
+    }
+
+    /// Refuses an extracted item that's a symlink pointing outside `scratch`
+    /// — 7-Zip recreates a symlink entry's target verbatim, and that target
+    /// is just as untrusted as the entry's own name. Unlike a crafted
+    /// *name* (already handled by never building paths from `entryPath`),
+    /// a crafted *target* like "/Users/me/.ssh/id_rsa" is the resolved
+    /// result the OS itself will follow the moment anything reads through
+    /// this link — most immediately Quick Look, which `DragOut.extract`
+    /// also feeds: pressing Space on an entry that looks like an innocuous
+    /// file would silently render the real target file's content instead.
+    /// A symlink whose target resolves *inside* `scratch` (pointing at
+    /// another file 7-Zip also just extracted) is harmless and left alone.
+    private static func rejectSymlinkEscapingScratch(_ url: URL, scratch: URL) throws {
+        guard let target = try? FileManager.default.destinationOfSymbolicLink(atPath: url.path) else {
+            return
+        }
+        let resolvedTarget = URL(fileURLWithPath: target, relativeTo: url.deletingLastPathComponent())
+            .standardizedFileURL
+        let scratchPath = scratch.standardizedFileURL.path
+        guard resolvedTarget.path == scratchPath || resolvedTarget.path.hasPrefix(scratchPath + "/") else {
+            throw ArchiveError.operationFailed(
+                code: -1,
+                message: "This entry is a symbolic link pointing outside the archive's extracted contents and can't be opened this way."
+            )
+        }
+    }
+
+    /// Finds the item 7-Zip actually extracted for `entryPath` inside `root`,
+    /// without ever building a filesystem path by concatenating `entryPath`
+    /// itself: that's an untrusted string from inside a possibly-malicious
+    /// archive, and a name like "../../../../Users/me/.ssh/id_rsa" would
+    /// resolve outside `root` to a real file on disk — which callers then
+    /// *move*, silently relocating or exfiltrating whatever that traversal
+    /// landed on.
+    ///
+    /// Instead this walks the real directories 7-Zip wrote under `root`, one
+    /// level per path component of `entryPath`, requiring each ancestor to
+    /// have exactly one child before descending into it. A malicious
+    /// `entryPath` can't steer this anywhere unsafe: 7-Zip sanitizes `../`
+    /// itself, so everything under `root` is already confined there, and
+    /// this only ever *counts* `entryPath`'s components (to know how many
+    /// levels an entry like "docs/reports/file.pdf" should nest) — never
+    /// their content. Not comparing each level's name against the expected
+    /// component too: entry names round-tripped through the archive can
+    /// differ in Unicode normalization from what 7-Zip writes to an APFS
+    /// volume, which would otherwise fail a perfectly legitimate extraction.
+    ///
+    /// A naive first attempt at this fix returned `root`'s *only top-level*
+    /// item — the first path component's directory — for any nested entry,
+    /// dragging out the whole ancestor folder chain instead of the file
+    /// itself. Shared with `ArchiveViewModel.copyEntry`, which extracts a
+    /// single entry into a scratch folder the same way and has the same
+    /// nesting problem.
+    static func locateExtractedItem(forEntryPath entryPath: String, in root: URL) throws -> URL {
+        let trimmed = entryPath.hasSuffix("/") ? String(entryPath.dropLast()) : entryPath
+        let depth = trimmed.split(separator: "/").count
+        var current = root
+        for _ in 0..<max(depth, 1) {
+            let children = try FileManager.default.contentsOfDirectory(at: current, includingPropertiesForKeys: nil)
+            guard let onlyChild = children.first, children.count == 1 else {
+                throw ArchiveError.operationFailed(code: -1, message: "Extraction did not produce the expected single item.")
+            }
+            current = onlyChild
+        }
+        return current
     }
 
     /// Deletes staging folders left over from previous drags. Call once at app
@@ -120,10 +174,25 @@ enum DragOut {
     }
 
     static func typeIdentifier(for entry: ArchiveEntry) -> String {
+        let ext = (entry.name as NSString).pathExtension
         if entry.isDirectory {
+            // A directory whose name is a known package extension (.app,
+            // .bundle, .framework, …) needs that real UTI declared, not a
+            // generic "public.folder": Finder silently refuses the drop
+            // entirely for one of these when it's promised as a plain
+            // folder while ending in ".app" — no error, the drag just does
+            // nothing. `conformingTo: .package` synthesizes a placeholder
+            // "dyn.*" identifier for any extension it doesn't actually
+            // recognize as a package type — never nil — so that has to be
+            // filtered back out, or *every* folder with a dot in its name
+            // (a plain folder named "notes.2024", say) would wrongly take
+            // this branch too.
+            if !ext.isEmpty, let type = UTType(filenameExtension: ext, conformingTo: .package),
+               !type.identifier.hasPrefix("dyn.") {
+                return type.identifier
+            }
             return UTType.folder.identifier
         }
-        let ext = (entry.name as NSString).pathExtension
         if !ext.isEmpty, let type = UTType(filenameExtension: ext), !type.conforms(to: .text) {
             return type.identifier
         }
