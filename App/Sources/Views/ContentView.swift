@@ -507,6 +507,15 @@ private struct SecondaryAlerts: ViewModifier {
                     )
                 }
             }
+            .sheet(isPresented: editProgressSheetPresented) {
+                if let progress = viewModel.editProgress {
+                    ProgressPanelView(
+                        title: editProgressTitle,
+                        progress: progress,
+                        onCancel: viewModel.cancelEdit
+                    )
+                }
+            }
             .alert("Extraction Complete", isPresented: extractionFinishedPresented, presenting: finishedDestination) { destination in
                 Button("Show in Finder") {
                     NSWorkspace.shared.activateFileViewerSelecting(finishedRevealTargets)
@@ -575,6 +584,24 @@ private struct SecondaryAlerts: ViewModifier {
 
     private var extractionSheetPresented: Binding<Bool> {
         Binding(get: { viewModel.isExtracting }, set: { if !$0 { viewModel.cancelExtraction() } })
+    }
+
+    private var editProgressSheetPresented: Binding<Bool> {
+        Binding(get: { viewModel.editProgress != nil }, set: { if !$0 { viewModel.cancelEdit() } })
+    }
+
+    /// Names the actual phase Add/Copy is in, instead of a generic
+    /// "Updating" for both — Copy's extract phase can finish in a couple of
+    /// seconds while its following compress phase takes far longer, so
+    /// without this the brief extract phase reads as if the panel "skipped
+    /// straight to compressing" rather than having its own phase to show.
+    private var editProgressTitle: String {
+        let name = viewModel.archiveURL?.lastPathComponent ?? "archive"
+        switch viewModel.editPhase {
+        case .extracting: return "Extracting from \(name)"
+        case .compressing: return "Updating \(name)"
+        case nil: return "Updating \(name)"
+        }
     }
 
     // Always shown when files were skipped or renamed instead of overwritten

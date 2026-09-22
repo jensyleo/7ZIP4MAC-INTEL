@@ -2,6 +2,43 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.4.9] — Progress bars for Add, Copy, and drag-out
+
+### Added
+
+- **Add and Copy now show real progress.** Both silently discarded the
+  engine's progress callback before — for a large file there was no
+  indication anything was happening at all. Both now drive the same
+  `ProgressPanelView` Extract already uses, with a real percentage/speed/ETA
+  and a working Cancel. Copy's panel also names which of its two phases
+  (extracting the entry to a scratch folder, then compressing it back into
+  the archive) is currently running — its extract phase can finish in a
+  couple of seconds while the following compress phase takes far longer, so
+  without a phase label the brief extract phase could read as if the panel
+  "skipped straight to compressing".
+- **Drag-out to Finder now shows a floating progress panel** for the
+  duration of the extraction feeding the drag — previously silent for large
+  files. Ported and adapted from the base's `MultiItemDragTrigger`/
+  `DragProgressPanel` to this fork's own AppKit drag implementation
+  (`EntryDragTrigger.swift`, a from-scratch `NSFilePromiseProvider` +
+  `NSDraggingSource` built for macOS 13, where the base's SwiftUI `Button` +
+  `.onDrag` approach isn't reliable). Dragging multiple selected entries at
+  once shares a single steady panel instead of flashing one per item.
+  Rewritten using `ObservableObject`/`@Published` rather than the base's
+  `@Observable` macro, which needs macOS 14 at runtime.
+
+Ported from base commits `1340c5f` (Add/Copy progress) and `b9d2727`/
+`f3ae188`/`5d12dce`/`6403699` (drag-out panel; final consolidated state, not
+each incremental commit — the middle two were mid-flight design iterations
+on the same feature). Not ported: `moveWithProgress`'s cross-volume
+incremental-copy progress reporting (a polish detail for external
+drives/network shares) — this fork's version reports real progress for the
+extraction phase, which is the dominant cost in the common same-volume case.
+
+46/46 SevenZipKit tests pass. Verified on real hardware: no crashes;
+confirmed the progress panel appears and updates for both Add/Copy and
+drag-out-to-Finder with large real files.
+
 ## [1.4.8] — Fix nested-entry drag/copy, symlink escape, .app extraction
 
 ### Fixed

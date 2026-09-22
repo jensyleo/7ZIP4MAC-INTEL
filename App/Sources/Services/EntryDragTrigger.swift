@@ -19,12 +19,24 @@ private final class ArchiveEntryFilePromiseProvider: NSFilePromiseProvider, NSFi
     private let entryPath: String
     private let entryName: String
     private let password: String?
+    private let totalUncompressedSize: UInt64
+    /// Shared across every provider of the *same* drag gesture (see
+    /// `EntryDragTriggerView.beginDrag`) — Finder calls `writePromiseTo` once
+    /// per dragged entry, and each one making its own progress panel
+    /// independently would flash a new activating window per item instead
+    /// of one steady one for a multi-item drag.
+    private let panelController: DragProgressPanelController
 
-    init(archiveURL: URL, entryPath: String, entryName: String, password: String?, typeIdentifier: String) {
+    init(
+        archiveURL: URL, entryPath: String, entryName: String, password: String?,
+        typeIdentifier: String, totalUncompressedSize: UInt64, panelController: DragProgressPanelController
+    ) {
         self.archiveURL = archiveURL
         self.entryPath = entryPath
         self.entryName = entryName
         self.password = password
+        self.totalUncompressedSize = totalUncompressedSize
+        self.panelController = panelController
         super.init()
         fileType = typeIdentifier
         delegate = self
@@ -42,19 +54,31 @@ private final class ArchiveEntryFilePromiseProvider: NSFilePromiseProvider, NSFi
         let entryPath = entryPath
         let archiveURL = archiveURL
         let password = password
-        Task {
-            do {
-                let extractedURL = try await DragOut.extract(
-                    entryPath: entryPath, archiveURL: archiveURL, password: password
-                )
-                if FileManager.default.fileExists(atPath: url.path) {
-                    try FileManager.default.removeItem(at: url)
+        let totalUncompressedSize = totalUncompressedSize
+        let panelController = panelController
+        let entryName = entryName
+        Task { @MainActor in
+            let state = panelController.beginItem(itemName: entryName)
+            let task = Task {
+                do {
+                    let extractedURL = try await DragOut.extract(
+                        entryPath: entryPath, archiveURL: archiveURL, password: password,
+                        totalUncompressedSize: totalUncompressedSize,
+                        progress: { info in
+                            Task { @MainActor in state.progress = info }
+                        }
+                    )
+                    if FileManager.default.fileExists(atPath: url.path) {
+                        try FileManager.default.removeItem(at: url)
+                    }
+                    try FileManager.default.moveItem(at: extractedURL, to: url)
+                    completionHandler(nil)
+                } catch {
+                    completionHandler(error)
                 }
-                try FileManager.default.moveItem(at: extractedURL, to: url)
-                completionHandler(nil)
-            } catch {
-                completionHandler(error)
+                panelController.finishItem()
             }
+            state.onCancel = { task.cancel() }
         }
     }
 }
@@ -70,6 +94,10 @@ final class EntryDragTriggerView: NSView, NSDraggingSource {
     var entries: [ArchiveEntry] = []
     var archiveURL: URL?
     var password: String?
+    /// The archive's full, flat listing — used only to size a dragged
+    /// folder's total (summing its descendants) for the drag progress
+    /// panel; `entries` above is just the item(s) actually being dragged.
+    var allEntries: [ArchiveEntry] = []
     var onPlainClick: (() -> Void)?
     var onDoubleClick: (() -> Void)?
 
@@ -119,13 +147,22 @@ final class EntryDragTriggerView: NSView, NSDraggingSource {
 
     private func beginDrag(with event: NSEvent, archiveURL: URL) {
         let icon = NSWorkspace.shared.icon(for: .data)
+        // One controller shared by every provider created here, so a
+        // multi-item drag shows a single steady progress panel instead of a
+        // new one flashing per item — see `DragProgressPanelController`'s
+        // own doc comment.
+        let panelController = DragProgressPanelController()
         let items: [NSDraggingItem] = entries.map { entry in
             let provider = ArchiveEntryFilePromiseProvider(
                 archiveURL: archiveURL,
                 entryPath: entry.path,
                 entryName: entry.name,
                 password: password,
-                typeIdentifier: DragOut.typeIdentifier(for: entry)
+                typeIdentifier: DragOut.typeIdentifier(for: entry),
+                totalUncompressedSize: entry.isDirectory
+                    ? DragOut.uncompressedSize(forEntryPath: entry.path, in: allEntries)
+                    : entry.size,
+                panelController: panelController
             )
             let draggingItem = NSDraggingItem(pasteboardWriter: provider)
             draggingItem.setDraggingFrame(bounds, contents: icon)
@@ -145,6 +182,7 @@ struct EntryDragTrigger: NSViewRepresentable {
     let entries: [ArchiveEntry]
     let archiveURL: URL
     let password: String?
+    let allEntries: [ArchiveEntry]
     let onPlainClick: () -> Void
     let onDoubleClick: () -> Void
 
@@ -162,6 +200,7 @@ struct EntryDragTrigger: NSViewRepresentable {
         view.entries = entries
         view.archiveURL = archiveURL
         view.password = password
+        view.allEntries = allEntries
         view.onPlainClick = onPlainClick
         view.onDoubleClick = onDoubleClick
     }

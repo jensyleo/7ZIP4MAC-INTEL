@@ -43,6 +43,7 @@
 		5CD4069DB82A1B123052F19C /* Engine in Resources */ = {isa = PBXBuildFile; fileRef = 3DB4EC54D03D72544DFF406B /* Engine */; };
 		614ACFE913ED77A433649429 /* DragOut.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D2001126EBDA2E2C61E0B03 /* DragOut.swift */; };
 		5E6F7A8B9C0D1E2F30415263 /* EntryDragTrigger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F7A8B9C0D1E2F3041526374 /* EntryDragTrigger.swift */; };
+		EC0B020CBB3E9C5521DDF326 /* DragProgressPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8186010F34DC6790619E62E8 /* DragProgressPanel.swift */; };
 		67CD1054CA88DCCF3488851C /* dmg.icns in Resources */ = {isa = PBXBuildFile; fileRef = 6A6A03985870DE2A4D1B3B75 /* dmg.icns */; };
 		685D34F7FFDF8CA044F656D8 /* rar.icns in Resources */ = {isa = PBXBuildFile; fileRef = 27674259D5F3F91C3DF57C30 /* rar.icns */; };
 		690023DEACC45CCD6BC8872F /* CompressionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 900F4AAA6C2878D0082B3773 /* CompressionViewModel.swift */; };
@@ -118,6 +119,7 @@
 		7C8EAB6A1B1FDC6A03FC2A07 /* BenchmarkViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BenchmarkViewModel.swift; sourceTree = "<group>"; };
 		7D2001126EBDA2E2C61E0B03 /* DragOut.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragOut.swift; sourceTree = "<group>"; };
 		6F7A8B9C0D1E2F3041526374 /* EntryDragTrigger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryDragTrigger.swift; sourceTree = "<group>"; };
+		8186010F34DC6790619E62E8 /* DragProgressPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragProgressPanel.swift; sourceTree = "<group>"; };
 		7E20B709BB37C4BFA8D2A735 /* CompressionFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompressionFlow.swift; sourceTree = "<group>"; };
 		7F16EED7BBBA7454A384D85B /* ProgressInfo+Display.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProgressInfo+Display.swift"; sourceTree = "<group>"; };
 		808F4A30398FE260CF1D7FF3 /* deb.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = deb.icns; sourceTree = "<group>"; };
@@ -334,6 +336,7 @@
 				B8D479DBA0B8DAEC0F4A7C74 /* BundledEngine.swift */,
 				7D2001126EBDA2E2C61E0B03 /* DragOut.swift */,
 				6F7A8B9C0D1E2F3041526374 /* EntryDragTrigger.swift */,
+				8186010F34DC6790619E62E8 /* DragProgressPanel.swift */,
 				6E01E9EBBBE38370F1EDE334 /* FileAssociationService.swift */,
 			);
 			path = Services;
@@ -492,6 +495,7 @@
 				B0A1D211B9E8AB55AA847032 /* ContentView.swift in Sources */,
 				614ACFE913ED77A433649429 /* DragOut.swift in Sources */,
 				5E6F7A8B9C0D1E2F30415263 /* EntryDragTrigger.swift in Sources */,
+				EC0B020CBB3E9C5521DDF326 /* DragProgressPanel.swift in Sources */,
 				D5B16D0F6ADBFF8FE6875F52 /* EmptyStateView.swift in Sources */,
 				28E2B77AEFA2A1246374FE3A /* EntryIcon.swift in Sources */,
 				0108922640AD3F6564D60974 /* EntryRowStatus.swift in Sources */,
@@ -600,7 +604,7 @@
 				ARCHS = x86_64;
 				VALID_ARCHS = x86_64;
 				ONLY_ACTIVE_ARCH = NO;
-				MARKETING_VERSION = 1.4.8;
+				MARKETING_VERSION = 1.4.9;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jensyleo.sevenzip4mac;
 				PRODUCT_NAME = 7ZIP4MAC;
 				SDKROOT = macosx;
@@ -694,7 +698,7 @@
 				ARCHS = x86_64;
 				VALID_ARCHS = x86_64;
 				ONLY_ACTIVE_ARCH = NO;
-				MARKETING_VERSION = 1.4.8;
+				MARKETING_VERSION = 1.4.9;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jensyleo.sevenzip4mac;
 				PRODUCT_NAME = 7ZIP4MAC;
 				SDKROOT = macosx;

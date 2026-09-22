@@ -386,6 +386,37 @@ public final class ArchiveViewModel: ObservableObject {
     /// Message from the last add/delete/move/copy, shown in an alert.
     @Published public private(set) var editMessage: String?
 
+    /// Progress of a running Add or Copy — the same underlying `compress`/
+    /// `extract` calls `extract(into:...)` reports through `extractionState`
+    /// already had progress; these two just silently discarded it, leaving
+    /// no indication at all that anything was happening for a large add/copy.
+    /// `nil` when nothing is running.
+    @Published public private(set) var editProgress: ProgressInfo?
+
+    /// Which underlying operation `editProgress` currently reflects — `Copy`
+    /// runs an `extract` (to a scratch folder) followed by a `compress`
+    /// (back into the archive) in sequence; `Add` is `compress` only. Lets
+    /// the progress panel's title say what's actually happening instead of
+    /// a generic "Updating" for both phases — without this, extracting a
+    /// highly-compressible test payload can finish in a couple of seconds
+    /// while the following compress takes tens of seconds, and the brief
+    /// extract phase reads as if the panel "skipped straight to
+    /// compressing" instead of having a first phase of its own.
+    public enum EditPhase {
+        case extracting
+        case compressing
+    }
+    @Published public private(set) var editPhase: EditPhase?
+    private var editTask: Task<Void, Never>?
+
+    /// Cancels a running Add or Copy.
+    public func cancelEdit() {
+        editTask?.cancel()
+        editTask = nil
+        editPhase = nil
+        editProgress = nil
+    }
+
     /// Adds files/folders into the archive under the folder currently being
     /// browsed (appends via `compress`, which is `7zz a` — an append/update
     /// when the destination archive already exists) and refreshes the listing.
@@ -402,7 +433,10 @@ public final class ArchiveViewModel: ObservableObject {
             return
         }
         let folder = currentFolder
-        Task { [serviceProvider] in
+        editTask?.cancel()
+        editProgress = .zero
+        editPhase = .compressing
+        editTask = Task { [serviceProvider] in
             let scratch = FileManager.default.temporaryDirectory
                 .appendingPathComponent("7ZIP4MAC-Add-\(UUID().uuidString)", isDirectory: true)
             defer { try? FileManager.default.removeItem(at: scratch) }
@@ -420,15 +454,32 @@ public final class ArchiveViewModel: ObservableObject {
                 let service = try serviceProvider()
                 let password = self.sessionPassword
                 try await service.compress(
-                    CompressionRequest(destinationURL: archive.url, sourceURLs: topLevelItems, format: format, password: password),
-                    progress: { _ in }
+                    CompressionRequest(
+                        destinationURL: archive.url, sourceURLs: topLevelItems, format: format, password: password,
+                        totalSourceSize: Self.totalSize(of: sources)
+                    ),
+                    progress: { info in
+                        Task { @MainActor in
+                            if self.editProgress != nil { self.editProgress = info }
+                        }
+                    }
                 )
+                self.editProgress = nil
+                self.editPhase = nil
                 try await self.reload(url: archive.url, password: password)
                 guard notifySuccess else { return }
                 self.editMessage = sources.count == 1
                     ? "Added “\(sources[0].lastPathComponent)”."
                     : "Added \(sources.count) items."
+            } catch is CancellationError {
+                self.editProgress = nil
+                self.editPhase = nil
+            } catch ArchiveError.cancelled {
+                self.editProgress = nil
+                self.editPhase = nil
             } catch {
+                self.editProgress = nil
+                self.editPhase = nil
                 self.editMessage = Self.describe(error)
             }
         }
@@ -509,7 +560,9 @@ public final class ArchiveViewModel: ObservableObject {
             editMessage = "An item named “\((newPath as NSString).lastPathComponent)” already exists here."
             return
         }
-        Task { [serviceProvider] in
+        editTask?.cancel()
+        editProgress = .zero
+        editTask = Task { [serviceProvider] in
             let scratch = FileManager.default.temporaryDirectory
                 .appendingPathComponent("7ZIP4MAC-Copy-\(UUID().uuidString)", isDirectory: true)
             defer { try? FileManager.default.removeItem(at: scratch) }
@@ -518,9 +571,17 @@ public final class ArchiveViewModel: ObservableObject {
                 let service = try serviceProvider()
                 let password = self.sessionPassword
 
+                self.editPhase = .extracting
                 try await service.extract(
-                    ExtractionRequest(archiveURL: archive.url, destinationURL: scratch, password: password, selectedPaths: [path]),
-                    progress: { _ in }
+                    ExtractionRequest(
+                        archiveURL: archive.url, destinationURL: scratch, password: password, selectedPaths: [path],
+                        totalUncompressedSize: self.uncompressedSize(of: archive, paths: [path])
+                    ),
+                    progress: { info in
+                        Task { @MainActor in
+                            if self.editProgress != nil { self.editProgress = info }
+                        }
+                    }
                 )
 
                 // Deliberately not `scratch.appendingPathComponent(path)`:
@@ -544,20 +605,37 @@ public final class ArchiveViewModel: ObservableObject {
                 // lands on `scratch` itself — otherwise `newPath`'s folder
                 // structure would be lost (collapsed into just a filename).
                 let topSegment = newPath.split(separator: "/", maxSplits: 1).first.map(String.init) ?? newPath
+                self.editPhase = .compressing
+                self.editProgress = .zero
                 try await service.compress(
                     CompressionRequest(
                         destinationURL: archive.url,
                         sourceURLs: [scratch.appendingPathComponent(topSegment)],
                         format: format,
-                        password: password
+                        password: password,
+                        totalSourceSize: self.uncompressedSize(of: archive, paths: [path])
                     ),
-                    progress: { _ in }
+                    progress: { info in
+                        Task { @MainActor in
+                            if self.editProgress != nil { self.editProgress = info }
+                        }
+                    }
                 )
 
+                self.editProgress = nil
+                self.editPhase = nil
                 try await self.reload(url: archive.url, password: password)
                 guard notifySuccess else { return }
                 self.editMessage = "Copied to “\(newPath)”."
+            } catch is CancellationError {
+                self.editProgress = nil
+                self.editPhase = nil
+            } catch ArchiveError.cancelled {
+                self.editProgress = nil
+                self.editPhase = nil
             } catch {
+                self.editProgress = nil
+                self.editPhase = nil
                 self.editMessage = Self.describe(error)
             }
         }
@@ -577,6 +655,32 @@ public final class ArchiveViewModel: ObservableObject {
     /// anything itself. See the `revealTargets` call site.
     private static func sanitizedRelativePath(_ path: String) -> String {
         path.split(separator: "/").filter { $0 != ".." && $0 != "." && !$0.isEmpty }.joined(separator: "/")
+    }
+
+    /// Recursively sums the byte size of the given files/folders — used to
+    /// give `addFiles`/`copyEntry`'s progress panel a real percentage and
+    /// ETA instead of an indeterminate bar, the same way
+    /// `CompressionViewModel.totalSize(of:)` does for the New Archive flow.
+    private static func totalSize(of urls: [URL]) -> UInt64 {
+        let fm = FileManager.default
+        var total: UInt64 = 0
+        for url in urls {
+            var isDirectory: ObjCBool = false
+            guard fm.fileExists(atPath: url.path, isDirectory: &isDirectory) else { continue }
+            if isDirectory.boolValue {
+                let enumerator = fm.enumerator(at: url, includingPropertiesForKeys: [.fileSizeKey, .isRegularFileKey])
+                while let child = enumerator?.nextObject() as? URL {
+                    let values = try? child.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey])
+                    if values?.isRegularFile == true {
+                        total += UInt64(values?.fileSize ?? 0)
+                    }
+                }
+            } else {
+                let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+                total += UInt64(size)
+            }
+        }
+        return total
     }
 
     /// Whether `path` already names an entry in `entries` — trailing slashes
