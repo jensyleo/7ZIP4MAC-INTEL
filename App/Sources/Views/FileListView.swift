@@ -93,6 +93,7 @@ struct FileListView: View {
                     // individual entries from.
                     archiveURL: viewModel.effectiveArchiveURL,
                     password: viewModel.sessionPassword,
+                    allEntries: viewModel.entries,
                     draggedEntries: {
                         // Dragging a row that's part of a larger selection
                         // drags the whole selection (Finder convention);
@@ -467,6 +468,7 @@ private struct EntryDragModifier: ViewModifier {
     let entry: ArchiveEntry
     let archiveURL: URL?
     let password: String?
+    let allEntries: [ArchiveEntry]
     let draggedEntries: () -> [ArchiveEntry]
     let onPlainClick: () -> Void
     let onDoubleClick: () -> Void
@@ -480,6 +482,7 @@ private struct EntryDragModifier: ViewModifier {
                     entries: draggedEntries(),
                     archiveURL: archiveURL!,
                     password: password,
+                    allEntries: allEntries,
                     onPlainClick: onPlainClick,
                     onDoubleClick: onDoubleClick
                 )
