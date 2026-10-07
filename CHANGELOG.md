@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.5.0] — Test progress, password reveal, steadier drag-out progress
+
+Ported from base v1.7.29 (`cb86280`).
+
+### Added
+- Integrity test shows live progress (percentage, current file, speed, time remaining) with a Cancel button; only one test runs at a time and cancelling really stops 7zz.
+- Password prompt has a show/hide button. When the archive is already loaded (only contents encrypted), entering the password no longer re-reads the whole archive.
+- A multi-part archive with an empty (0-byte) volume now reports which parts are empty instead of "unsupported format".
+
+### Fixed
+- Drag-out progress panel: each dragged item keeps its own counters (the bar no longer jumps between items), at most two items extract at once, and speed/remaining use a recent window.
+
+### Not ported
+- Fallback engine for damaged multi-part RAR sets (`lsar`/`unar` are Apple Silicon–only binaries), its symlink-containment logic, and the drag-out "move" phase (INTEL's move is an instant rename).
+
 ## [1.4.9] — Progress bars for Add, Copy, and drag-out
 
 ### Added

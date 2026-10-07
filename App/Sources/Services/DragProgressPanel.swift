@@ -2,25 +2,97 @@ import SwiftUI
 import AppKit
 import SevenZipKit
 
-/// Live state for a single drag-out's extraction. A plain `ObservableObject`
-/// (not the newer `@Observable` macro, which needs macOS 14 at runtime —
-/// this project targets macOS 13) driven from
-/// `ArchiveEntryFilePromiseProvider`'s background `Task`, not a SwiftUI
-/// view's own lifecycle.
+/// Live state for one drag-out session: every item being extracted, combined
+/// into a single steady progress figure. Each item keeps its *own* byte
+/// counters (see ``ProgressAggregator``) — an earlier version let all items
+/// write one shared figure, so the bar jumped between whichever item
+/// reported last on a multi-item drag.
 @MainActor
 final class DragTransferState: ObservableObject {
-    @Published var itemName: String
-    @Published var progress: ProgressInfo = .zero
-    /// Set by the caller once the underlying `Task` exists, so the panel's
-    /// own Cancel button (the same `ProgressPanelView` Extract uses) can
-    /// actually stop it instead of just sitting there unwired.
-    var onCancel: (() -> Void)?
+    @Published private(set) var progress: ProgressInfo = .zero
+    @Published private(set) var title = ""
 
-    init(itemName: String) {
-        self.itemName = itemName
+    private var cancelHandlers: [UUID: () -> Void] = [:]
+    private var names: [UUID: String] = [:]
+    private var aggregator = ProgressAggregator()
+    private var finishedCount = 0
+    private var latestFile: String?
+    private var estimator = RateEstimator()
+
+    func register(name: String) -> UUID {
+        let id = UUID()
+        names[id] = name
+        aggregator.register(id)
+        refresh()
+        return id
     }
 
-    var title: String { "Extracting \(itemName)" }
+    func report(_ id: UUID, _ info: ProgressInfo) {
+        aggregator.update(id, processed: info.processedBytes, total: info.totalBytes)
+        if let file = info.currentFile { latestFile = file }
+        refresh()
+    }
+
+    func setCancel(_ id: UUID, _ handler: (() -> Void)?) {
+        cancelHandlers[id] = handler
+    }
+
+    func finish(_ id: UUID) {
+        aggregator.finish(id)
+        finishedCount += 1
+        refresh()
+    }
+
+    /// The panel's single Cancel button stops every item of the drag.
+    func cancelAll() {
+        for handler in cancelHandlers.values { handler() }
+    }
+
+    private func refresh() {
+        let snapshot = aggregator.snapshot()
+        let rate = estimator.rate(processed: snapshot.processed)
+        let remaining = RateEstimator.remaining(total: snapshot.total, processed: snapshot.processed, rate: rate)
+        progress = ProgressInfo(
+            fractionCompleted: snapshot.fraction,
+            processedBytes: snapshot.processed,
+            totalBytes: snapshot.total,
+            bytesPerSecond: rate,
+            estimatedTimeRemaining: remaining,
+            currentFile: latestFile
+        )
+        if names.count == 1, let only = names.values.first {
+            title = "Extracting \(only)"
+        } else {
+            let done = finishedCount > 0 ? " — \(finishedCount) done" : ""
+            title = "Extracting \(names.count) items\(done)"
+        }
+    }
+}
+
+/// One item's handle on the shared ``DragTransferState``.
+@MainActor
+final class DragTransferItem {
+    private let id: UUID
+    private let state: DragTransferState
+
+    fileprivate init(name: String, state: DragTransferState) {
+        self.state = state
+        self.id = state.register(name: name)
+    }
+
+    /// Set once the underlying `Task` exists, so the panel's Cancel button
+    /// can actually stop it instead of just sitting there unwired.
+    var onCancel: (() -> Void)? {
+        didSet { state.setCancel(id, onCancel) }
+    }
+
+    func report(_ info: ProgressInfo) {
+        state.report(id, info)
+    }
+
+    fileprivate func finish() {
+        state.finish(id)
+    }
 }
 
 private struct DragTransferView: View {
@@ -30,50 +102,68 @@ private struct DragTransferView: View {
         ProgressPanelView(
             title: state.title,
             progress: state.progress,
-            onCancel: { state.onCancel?() }
+            onCancel: { state.cancelAll() }
         )
     }
 }
 
-/// Shows the same `ProgressPanelView` Extract uses for the duration of a
-/// drag-out's promise fulfillment, in a small floating panel instead of a
-/// window sheet.
+/// Owns the floating progress panel shown while dragged-out entries extract
+/// to Finder. A floating panel (not a sheet) because the drag has already
+/// left this app's window by the time `writePromiseTo` fires.
 ///
-/// One instance is shared across every item of the *same* multi-item drag
-/// (see `EntryDragTriggerView.beginDrag`), reference-counted via
-/// ``beginItem(itemName:)``/``finishItem()``: Finder calls `writePromiseTo`
-/// once per selected entry, and each one making its own panel independently
-/// would flash a new activating window per item instead of one steady one.
-/// A *different*, separate drag still gets its own controller instance, so
-/// two unrelated drags started close together don't fight over the same
-/// window.
+/// One instance is shared across every item of the *same* drag gesture
+/// (see `EntryDragTriggerView.beginDrag`): Finder calls `writePromiseTo`
+/// once per entry, and each used to make its own panel independently, so a
+/// multi-item drag flashed a new activating window per item.
 ///
-/// Made key/active, not a non-activating panel: AppKit renders a
-/// `ProgressView`'s bar (and every other control) in a dimmed gray, not the
-/// real accent color, in any window that isn't key — matching how Extract's
-/// own sheet looks means this panel has to actually become key too. This
-/// only runs after `writePromiseTo` starts, i.e. after the drop already
-/// landed and the drag gesture itself is over — the mouse isn't held over
-/// Finder anymore at that point, so activating here doesn't interrupt
-/// anything.
+/// At most two items extract at once; the rest wait in ``acquireSlot()``.
+/// Finder starts every promise simultaneously, and running dozens of
+/// extractions against a network volume in parallel only slows each one.
+///
+/// Made key/active, not a non-activating panel: AppKit renders the bar in a
+/// dimmed gray in a non-key window; by the time the panel appears the drag
+/// gesture is over, so activating is safe.
 @MainActor
 final class DragProgressPanelController {
     private var panel: NSPanel?
     private var state: DragTransferState?
     private var activeCount = 0
 
+    private let limiter = SlotLimiter(limit: 2)
+
     /// Call once per item about to be extracted. Creates and activates the
-    /// panel for the first concurrently-active item in this drag; later
-    /// items (running items 2...N of the same multi-selection drag) reuse
-    /// the same panel/state instead of spawning their own.
-    func beginItem(itemName: String) -> DragTransferState {
+    /// panel for the first item of this drag; later items reuse it.
+    func beginItem(itemName: String) -> DragTransferItem {
         activeCount += 1
-        if let state {
-            state.itemName = itemName
-            state.progress = .zero
-            return state
-        }
-        let state = DragTransferState(itemName: itemName)
+        return DragTransferItem(name: itemName, state: state ?? makePanel())
+    }
+
+    /// Call once per item when its transfer ends (success or failure). Only
+    /// closes the panel once every item this controller tracks has finished.
+    func finishItem(_ item: DragTransferItem) {
+        item.finish()
+        activeCount -= 1
+        guard activeCount <= 0 else { return }
+        panel?.close()
+        panel = nil
+        state = nil
+        activeCount = 0
+    }
+
+    /// Waits for one of the extraction slots. Throws `CancellationError` —
+    /// without holding a slot — if cancelled while waiting. Pair every
+    /// successful call with ``releaseSlot()``.
+    func acquireSlot() async throws {
+        try await limiter.acquire()
+    }
+
+    func releaseSlot() {
+        let limiter = limiter
+        Task { await limiter.release() }
+    }
+
+    private func makePanel() -> DragTransferState {
+        let state = DragTransferState()
         self.state = state
         let panel = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: 460, height: 200),
@@ -94,17 +184,5 @@ final class DragProgressPanelController {
         panel.makeKeyAndOrderFront(nil)
         self.panel = panel
         return state
-    }
-
-    /// Call once per item when its transfer ends (success or failure). Only
-    /// closes the panel once every item this controller is tracking has
-    /// finished.
-    func finishItem() {
-        activeCount -= 1
-        guard activeCount <= 0 else { return }
-        panel?.close()
-        panel = nil
-        state = nil
-        activeCount = 0
     }
 }

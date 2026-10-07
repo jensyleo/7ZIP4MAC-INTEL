@@ -57,28 +57,33 @@ private final class ArchiveEntryFilePromiseProvider: NSFilePromiseProvider, NSFi
         let totalUncompressedSize = totalUncompressedSize
         let panelController = panelController
         let entryName = entryName
-        Task { @MainActor in
-            let state = panelController.beginItem(itemName: entryName)
-            let task = Task {
-                do {
-                    let extractedURL = try await DragOut.extract(
-                        entryPath: entryPath, archiveURL: archiveURL, password: password,
-                        totalUncompressedSize: totalUncompressedSize,
-                        progress: { info in
-                            Task { @MainActor in state.progress = info }
-                        }
-                    )
-                    if FileManager.default.fileExists(atPath: url.path) {
-                        try FileManager.default.removeItem(at: url)
+        final class TaskBox: @unchecked Sendable { var task: Task<Void, Never>? }
+        let box = TaskBox()
+        box.task = Task { @MainActor in
+            let item = panelController.beginItem(itemName: entryName)
+            item.onCancel = { box.task?.cancel() }
+            defer { panelController.finishItem(item) }
+            do {
+                // Finder starts every promised item at once; this holds the
+                // extra ones back so only a couple hit the archive together.
+                try await panelController.acquireSlot()
+                defer { panelController.releaseSlot() }
+                let extractedURL = try await DragOut.extract(
+                    entryPath: entryPath, archiveURL: archiveURL, password: password,
+                    totalUncompressedSize: totalUncompressedSize,
+                    progress: { info in
+                        Task { @MainActor in item.report(info) }
                     }
-                    try FileManager.default.moveItem(at: extractedURL, to: url)
-                    completionHandler(nil)
-                } catch {
-                    completionHandler(error)
+                )
+                if Task.isCancelled { throw CancellationError() }
+                if FileManager.default.fileExists(atPath: url.path) {
+                    try FileManager.default.removeItem(at: url)
                 }
-                panelController.finishItem()
+                try FileManager.default.moveItem(at: extractedURL, to: url)
+                completionHandler(nil)
+            } catch {
+                completionHandler(error)
             }
-            state.onCancel = { task.cancel() }
         }
     }
 }

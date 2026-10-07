@@ -148,6 +148,18 @@ public final class ArchiveViewModel: ObservableObject {
     /// Submits a password entered in the unlock prompt.
     public func submitPassword(_ password: String) {
         guard let url = pendingPasswordURL else { return }
+        // The archive is already loaded and browsable: only its entries'
+        // *content* is encrypted, so listing it again with the password
+        // can't validate anything — it would just re-read every volume
+        // (minutes on a network volume) and reset the folder being viewed.
+        // Keep the password for extraction instead.
+        if case .loaded(let archive) = state, archive.url == url {
+            sessionPassword = password
+            pendingPasswordURL = nil
+            passwordAttemptFailed = false
+            passwordAttemptCount = 0
+            return
+        }
         attemptOpen(url: url, password: password)
     }
 
@@ -232,6 +244,11 @@ public final class ArchiveViewModel: ObservableObject {
         loadTask = nil
         extractTask?.cancel()
         extractTask = nil
+        testToken = nil
+        testTask?.cancel()
+        testTask = nil
+        isTesting = false
+        testProgress = nil
         extractionState = .idle
         cleanupStagingDirectory()
         state = .empty
@@ -348,18 +365,47 @@ public final class ArchiveViewModel: ObservableObject {
     /// Message from the last integrity test, shown in an alert.
     @Published public private(set) var testMessage: String?
 
-    /// Tests the integrity of the loaded archive.
-    /// Tests the whole archive, or just `selectedPaths` when given.
+    /// True while an integrity test runs. A second Test is ignored until it
+    /// ends — each click used to start another full read of the archive.
+    @Published public private(set) var isTesting = false
+
+    /// Live progress of the running test, once the engine has reported any.
+    @Published public private(set) var testProgress: ProgressInfo?
+    private var testTask: Task<Void, Never>?
+    private var testToken: UUID?
+
+    /// Tests the integrity of the loaded archive, or just `selectedPaths`
+    /// when given.
     ///
     /// - Parameter notifySuccess: Whether to show an alert when the test
     ///   passes. A failed/damaged result always shows, regardless.
     public func test(selectedPaths: [String] = [], notifySuccess: Bool = true) {
-        guard case .loaded(let archive) = state else { return }
-        Task { [serviceProvider] in
+        guard case .loaded(let archive) = state, !isTesting else { return }
+        isTesting = true
+        testProgress = nil
+        let token = UUID()
+        testToken = token
+        let basis = testBasis(for: archive, paths: selectedPaths)
+        testTask = Task { [serviceProvider] in
+            defer {
+                if self.testToken == token {
+                    self.isTesting = false
+                    self.testTask = nil
+                    self.testProgress = nil
+                }
+            }
             do {
                 let service = try serviceProvider()
                 let password = self.sessionPassword
-                let ok = try await service.test(archiveAt: archive.effectiveURL, selectedPaths: selectedPaths, password: password)
+                let ok = try await service.test(
+                    archiveAt: archive.effectiveURL, selectedPaths: selectedPaths, password: password,
+                    basis: basis
+                ) { info in
+                    Task { @MainActor in
+                        if self.testToken == token { self.testProgress = info }
+                    }
+                }
+                guard self.testToken == token else { return }
                 guard ok == false || notifySuccess else { return }
                 let subject = selectedPaths.count == 1
                     ? "“\((selectedPaths[0] as NSString).lastPathComponent)”"
@@ -369,12 +415,38 @@ public final class ArchiveViewModel: ObservableObject {
                 self.testMessage = ok
                     ? "\(subject) tested OK — no errors were found."
                     : "\(subject) failed the integrity test. It may be damaged."
-            } catch let error as ArchiveError {
-                self.testMessage = error.localizedDescription
+            } catch ArchiveError.cancelled {
+                return
             } catch {
+                guard self.testToken == token else { return }
                 self.testMessage = error.localizedDescription
             }
         }
+    }
+
+    /// Stops a running integrity test.
+    public func cancelTest() {
+        testToken = nil
+        testTask?.cancel()
+        testTask = nil
+        isTesting = false
+        testProgress = nil
+    }
+
+    /// What an integrity test will verify: every file, or the files under the
+    /// selected paths (a selected folder counts all of its descendants).
+    private func testBasis(for archive: Archive, paths: [String]) -> TestProgressBasis {
+        var sizes: [String: UInt64] = [:]
+        var total: UInt64 = 0
+        for entry in archive.entries where !entry.isDirectory {
+            if !paths.isEmpty,
+               !paths.contains(where: { entry.path == $0 || entry.path.hasPrefix($0 + "/") }) {
+                continue
+            }
+            sizes[entry.path] = entry.size
+            total += entry.size
+        }
+        return TestProgressBasis(totalBytes: total, entrySizes: sizes)
     }
 
     public func dismissTest() {

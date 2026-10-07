@@ -21,6 +21,11 @@ public enum ArchiveError: Error, Equatable, Sendable {
     /// 7-Zip does not recognise the archive format, or the file is corrupt.
     case unsupportedFormat
 
+    /// A multi-part archive has one or more volumes that exist but are 0
+    /// bytes — 7-Zip then reports the whole set as unreadable, which is
+    /// otherwise indistinguishable from a genuinely corrupt file.
+    case emptyVolumes(names: [String])
+
     /// `7zz` exited with a fatal status while performing an operation.
     case operationFailed(code: Int32, message: String)
 
@@ -44,6 +49,10 @@ extension ArchiveError: LocalizedError {
             return "The archive is encrypted and requires a valid password."
         case .unsupportedFormat:
             return "This file is not a supported archive, or it is damaged."
+        case .emptyVolumes(let names):
+            let shown = names.prefix(5).joined(separator: ", ")
+            let more = names.count > 5 ? " and \(names.count - 5) more" : ""
+            return "This multi-part archive can't be opened because \(names.count == 1 ? "a part is" : "\(names.count) parts are") empty (0 bytes): \(shown)\(more). Re-download or restore \(names.count == 1 ? "it" : "them") and try again."
         case .operationFailed(let code, let message):
             return "The 7-Zip engine reported an error (code \(code)): \(message)"
         case .parsingFailed(let reason):
