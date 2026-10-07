@@ -77,7 +77,7 @@ public final class ArchiveViewModel: ObservableObject {
     public convenience init() {
         self.init(serviceProvider: {
             let executable = try BundledEngine.resolve()
-            return ArchiveService(executable: executable)
+            return ArchiveService(executable: executable, fallback: BundledEngine.resolveFallback())
         })
     }
 

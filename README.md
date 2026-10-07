@@ -102,6 +102,16 @@ alongside it (`App/Resources/Engine/License.txt`). All compression, extraction,
 encryption and archive reading is performed by this engine; the application only
 provides the interface.
 
+### Fallback for damaged multi-part RAR sets
+
+7-Zip refuses an entire `name.partNN.rar` set when one volume is 0 bytes, and
+stops listing at the first missing volume. Only for such damaged sets (never for
+healthy archives), the app uses `lsar` and `unar` from
+[The Unarchiver](https://github.com/MacPaw/XADMaster), bundled unmodified at
+`Contents/Resources/Engine/` (built for x86_64). They read every volume's
+headers independently, so everything outside the damaged volumes can still be
+listed and extracted; files in a bad volume are reported as damaged.
+
 ## Building
 
 Requirements: macOS 13+, Xcode 15+, [XcodeGen](https://github.com/yonaskolb/XcodeGen).
@@ -147,6 +157,8 @@ Not currently planned, but kept in mind for a future version:
 ## License
 
 Application code: [GNU GPL v3.0](LICENSE) © 2026 Jensy Leonardo Martínez Cruz.
+Bundled `lsar`/`unar` fallback: GNU LGPL 2.1 or later, by Dag Ågren and MacPaw —
+see `App/Resources/Engine/unar-LICENSE-LGPL-2.1.txt` and `unar-README.txt`.
 Bundled 7-Zip engine: GNU LGPL (with the unRAR restriction on commercial use of
 the unRAR code), by Igor Pavlov — see `App/Resources/Engine/License.txt`.
 

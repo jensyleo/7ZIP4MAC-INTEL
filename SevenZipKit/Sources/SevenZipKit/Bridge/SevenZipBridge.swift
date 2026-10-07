@@ -69,13 +69,22 @@ public extension SevenZipBridge {
 /// classifies the exit status into typed errors, and parses the output.
 public struct SystemSevenZipBridge: SevenZipBridge {
     private let runner: SevenZipRunner
+    private let fallback: RarFallbackEngine?
 
-    public init(runner: SevenZipRunner) {
+    public init(runner: SevenZipRunner, fallback: RarFallbackEngine? = nil) {
         self.runner = runner
+        self.fallback = fallback
     }
 
-    public init(executable: SevenZipExecutable) {
-        self.init(runner: SevenZipRunner(executable: executable))
+    public init(executable: SevenZipExecutable, fallback: RarFallbackEngine? = nil) {
+        self.init(runner: SevenZipRunner(executable: executable), fallback: fallback)
+    }
+
+    /// The fallback engine, but only for a multi-part RAR set that 7-Zip
+    /// can't handle (empty or missing volumes). Healthy archives never use it.
+    private func fallbackIfSetDamaged(_ url: URL) -> RarFallbackEngine? {
+        guard let fallback, VolumeSetHealth.assess(url)?.isDamaged == true else { return nil }
+        return fallback
     }
 
     public func list(
@@ -84,6 +93,11 @@ public struct SystemSevenZipBridge: SevenZipBridge {
     ) async throws -> (ArchiveProperties, [ArchiveEntry]) {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw ArchiveError.archiveNotFound(path: url.path)
+        }
+
+        if let engine = fallbackIfSetDamaged(url) {
+            ArchiveLog.service.info("Listing \(url.lastPathComponent, privacy: .public) with the fallback engine (damaged volume set)")
+            return try await engine.list(archiveAt: url, password: password)
         }
 
         ArchiveLog.service.info("Listing started for \(url.lastPathComponent, privacy: .public)")
@@ -127,6 +141,20 @@ public struct SystemSevenZipBridge: SevenZipBridge {
     ) async throws {
         guard FileManager.default.fileExists(atPath: request.archiveURL.path) else {
             throw ArchiveError.archiveNotFound(path: request.archiveURL.path)
+        }
+
+        if let engine = fallbackIfSetDamaged(request.archiveURL) {
+            ArchiveLog.service.info("Extracting \(request.archiveURL.lastPathComponent, privacy: .public) with the fallback engine (damaged volume set)")
+            try await engine.extract(request, progress: progress)
+            progress(ProgressInfo(
+                fractionCompleted: 1,
+                processedBytes: request.totalUncompressedSize,
+                totalBytes: request.totalUncompressedSize,
+                bytesPerSecond: 0,
+                estimatedTimeRemaining: 0,
+                currentFile: nil
+            ))
+            return
         }
 
         ArchiveLog.service.info("Extraction started for \(request.archiveURL.lastPathComponent, privacy: .public)")
@@ -300,6 +328,14 @@ public struct SystemSevenZipBridge: SevenZipBridge {
     ) async throws -> Bool {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw ArchiveError.archiveNotFound(path: url.path)
+        }
+        if let engine = fallbackIfSetDamaged(url) {
+            ArchiveLog.service.info("Testing \(url.lastPathComponent, privacy: .public) with the fallback engine (damaged volume set)")
+            try await engine.test(
+                archiveAt: url, selectedPaths: selectedPaths, password: password,
+                basis: basis, progress: progress
+            )
+            return true
         }
         ArchiveLog.service.info("Test started for \(url.lastPathComponent, privacy: .public)")
         var arguments = ["t", "-y", "-p" + (password ?? "")]

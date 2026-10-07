@@ -58,8 +58,8 @@ public struct ArchiveService: ArchiveServing {
     }
 
     /// Convenience initialiser that wires the production system bridge.
-    public init(executable: SevenZipExecutable) {
-        self.init(bridge: SystemSevenZipBridge(executable: executable))
+    public init(executable: SevenZipExecutable, fallback: RarFallbackEngine? = nil) {
+        self.init(bridge: SystemSevenZipBridge(executable: executable, fallback: fallback))
     }
 
     /// Single-stream compressors: formats 7-Zip reports as the archive's

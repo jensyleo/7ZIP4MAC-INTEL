@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.5.1] — Fallback for damaged multi-part RAR sets (Intel)
+
+### Added
+- Multi-part RAR sets (`name.partNN.rar`) with a 0-byte or missing volume can now be opened, listed, extracted and tested. 7-Zip refuses the whole set; a bundled fallback (`lsar`/`unar` from The Unarchiver, LGPL-2.1-or-later) reads each volume on its own, so everything outside the damaged volumes stays usable. Used only for damaged sets; healthy archives still go through 7-Zip. The two tools are built from source (XADMaster v1.10.8) for x86_64, macOS 13+, unmodified.
+- A partial extraction now says everything else was extracted, and tells a write failure at the destination apart from damaged archive data. The fallback's integrity test lists each damaged file with its reason.
+
+### Changed
+- SECURITY.md contact address.
+
 ## [1.5.0] — Test progress, password reveal, steadier drag-out progress
 
 Ported from base v1.7.29 (`cb86280`).
