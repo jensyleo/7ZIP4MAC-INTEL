@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.5.2] — Keep the download marker on extracted files, validate copy/move destinations
+
+Ported from base v1.7.30 (`22e6004`).
+
+### Security
+- Extracting with 7-Zip now carries the archive's `com.apple.quarantine` marker onto the extracted files, so Gatekeeper still checks an app unpacked from a downloaded archive (Extract, drag-out, and archives unwrapped from .gz/.bz2/.xz). Files already in the destination are left untouched.
+- Copy and Move refuse a destination path that is absolute or has a `..` component.
+- The Shortcuts Compress action ignores directory parts in the archive name.
+
+### Internal
+- Removed unused code (icon-name table, `remainingBytes`, `giB`); one shared `trimmingTrailingSlash` helper.
+
 ## [1.5.1] — Fallback for damaged multi-part RAR sets (Intel)
 
 ### Added

@@ -585,6 +585,14 @@ public final class ArchiveViewModel: ObservableObject {
     /// Moves (or renames) an entry to a new path within the same archive.
     public func moveEntry(path: String, toPath newPath: String, notifySuccess: Bool = true) {
         guard case .loaded(let archive) = state, path != newPath else { return }
+        guard newPath.isSafeArchiveRelativePath else {
+            Task { @MainActor in self.editMessage = Self.destinationNotAllowedMessage }
+            return
+        }
+        guard newPath.isSafeArchiveRelativePath else {
+            Task { @MainActor in self.editMessage = Self.destinationNotAllowedMessage }
+            return
+        }
         guard !archive.isUnwrapped else {
             editMessage = Self.unwritableFormatMessage(for: archive)
             return
@@ -621,6 +629,10 @@ public final class ArchiveViewModel: ObservableObject {
     /// when the destination already exists).
     public func copyEntry(path: String, toPath newPath: String, notifySuccess: Bool = true) {
         guard case .loaded(let archive) = state, path != newPath else { return }
+        guard newPath.isSafeArchiveRelativePath else {
+            Task { @MainActor in self.editMessage = Self.destinationNotAllowedMessage }
+            return
+        }
         guard let format = Self.writableFormat(for: archive) else {
             editMessage = Self.unwritableFormatMessage(for: archive)
             return
@@ -721,6 +733,9 @@ public final class ArchiveViewModel: ObservableObject {
         (error as? ArchiveError)?.localizedDescription ?? error.localizedDescription
     }
 
+    private static let destinationNotAllowedMessage =
+        "That destination isn't allowed: it must be a path inside the archive."
+
     /// Strips ".."/"." components from an archive entry's path — used only
     /// to guess where 7-Zip's own extraction (which does the same
     /// sanitizing for real) will have put a file, never to read/write
@@ -759,9 +774,9 @@ public final class ArchiveViewModel: ObservableObject {
     /// (how folders are stored) normalized away so a file and a
     /// same-named folder are still correctly seen as a collision.
     private static func pathExists(_ path: String, in entries: [ArchiveEntry]) -> Bool {
-        let normalized = path.hasSuffix("/") ? String(path.dropLast()) : path
+        let normalized = path.trimmingTrailingSlash
         return entries.contains { entry in
-            let entryPath = entry.path.hasSuffix("/") ? String(entry.path.dropLast()) : entry.path
+            let entryPath = entry.path.trimmingTrailingSlash
             return entryPath == normalized
         }
     }
@@ -834,7 +849,7 @@ public final class ArchiveViewModel: ObservableObject {
     /// Enters a subfolder row.
     public func enter(_ entry: ArchiveEntry) {
         guard entry.isDirectory else { return }
-        currentFolder = entry.path.hasSuffix("/") ? String(entry.path.dropLast()) : entry.path
+        currentFolder = entry.path.trimmingTrailingSlash
         recomputeVisible()
     }
 
