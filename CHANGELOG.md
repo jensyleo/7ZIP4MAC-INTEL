@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.6.0] — Several archives open at once
+
+### Added
+- Opening another archive (double-click in Finder, Open Archive…, Open Recent) no longer replaces the one already showing: each archive gets its own window, with its own state, selection and "New Archive" flow. Built with AppKit-owned windows instead of `WindowGroup`, whose open-file routing is unreliable on macOS 13. The main window still shows the first archive; an empty window is reused before a new one is created.
+- The File menu (Close Archive, Extract All…, New Archive…) acts on the window you are working in.
+
+### Fixed
+- Opening a Finder file no longer risks being handled twice: `AppDelegate` is the single entry point (the redundant `.onOpenURL` was removed).
+- Closing a window now releases its archive and scratch files.
+
 ## [1.5.2] — Keep the download marker on extracted files, validate copy/move destinations
 
 Ported from base v1.7.30 (`22e6004`).

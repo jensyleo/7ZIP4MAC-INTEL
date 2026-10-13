@@ -27,6 +27,7 @@
 		438A98CDB1DB103A8060E1F6 /* CompatUnavailableView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F46AEF7D72711420E237A3A3 /* CompatUnavailableView.swift */; };
 		3DDA5789F2F4534D8EBBF618 /* ext.icns in Resources */ = {isa = PBXBuildFile; fileRef = F428E210B11238E76C8AEDC9 /* ext.icns */; };
 		34CE147C342C69ADF2A2224D /* TestingPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8914114D6C682EB06B6151DE /* TestingPanelView.swift */; };
+		047CB865A553D5E8410B9134 /* ArchiveWindowManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51C34044DA0B23CF9ECAB434 /* ArchiveWindowManager.swift */; };
 		3E85614159D091F4BF1DFC95 /* PasswordPromptView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AE541D389A4A9FB280F2BE5 /* PasswordPromptView.swift */; };
 		40561945B7C1AC70C655D811 /* AssociableFormat.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4164381AC4B9936A936D47F /* AssociableFormat.swift */; };
 		9701D83F694D77717C45C4AC /* HelpTopic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 454E5BF13C6AE89B57786D70 /* HelpTopic.swift */; };
@@ -128,6 +129,7 @@
 		896B97392DF7589ED066946D /* InspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InspectorView.swift; sourceTree = "<group>"; };
 		F46AEF7D72711420E237A3A3 /* CompatUnavailableView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompatUnavailableView.swift; sourceTree = "<group>"; };
 		8914114D6C682EB06B6151DE /* TestingPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestingPanelView.swift; sourceTree = "<group>"; };
+		51C34044DA0B23CF9ECAB434 /* ArchiveWindowManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveWindowManager.swift; sourceTree = "<group>"; };
 		8AE541D389A4A9FB280F2BE5 /* PasswordPromptView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasswordPromptView.swift; sourceTree = "<group>"; };
 		8CED0F4CDF346FBEFAF6AEB0 /* ArchiveOpenPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveOpenPanel.swift; sourceTree = "<group>"; };
 		900F4AAA6C2878D0082B3773 /* CompressionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompressionViewModel.swift; sourceTree = "<group>"; };
@@ -337,6 +339,7 @@
 				A481681D881978A42525FA8D /* AppURLRouter.swift */,
 				E2F5A0571F39D2009576955B /* AutomationService.swift */,
 				B8D479DBA0B8DAEC0F4A7C74 /* BundledEngine.swift */,
+				51C34044DA0B23CF9ECAB434 /* ArchiveWindowManager.swift */,
 				7D2001126EBDA2E2C61E0B03 /* DragOut.swift */,
 				6F7A8B9C0D1E2F3041526374 /* EntryDragTrigger.swift */,
 				8186010F34DC6790619E62E8 /* DragProgressPanel.swift */,
@@ -496,6 +499,7 @@
 				D2FD65ECAC98F031827BB620 /* CompressionOptionsView.swift in Sources */,
 				690023DEACC45CCD6BC8872F /* CompressionViewModel.swift in Sources */,
 				B0A1D211B9E8AB55AA847032 /* ContentView.swift in Sources */,
+				047CB865A553D5E8410B9134 /* ArchiveWindowManager.swift in Sources */,
 				614ACFE913ED77A433649429 /* DragOut.swift in Sources */,
 				5E6F7A8B9C0D1E2F30415263 /* EntryDragTrigger.swift in Sources */,
 				EC0B020CBB3E9C5521DDF326 /* DragProgressPanel.swift in Sources */,
@@ -608,7 +612,7 @@
 				ARCHS = x86_64;
 				VALID_ARCHS = x86_64;
 				ONLY_ACTIVE_ARCH = NO;
-				MARKETING_VERSION = 1.5.2;
+				MARKETING_VERSION = 1.6.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jensyleo.sevenzip4mac;
 				PRODUCT_NAME = 7ZIP4MAC;
 				SDKROOT = macosx;
@@ -702,7 +706,7 @@
 				ARCHS = x86_64;
 				VALID_ARCHS = x86_64;
 				ONLY_ACTIVE_ARCH = NO;
-				MARKETING_VERSION = 1.5.2;
+				MARKETING_VERSION = 1.6.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jensyleo.sevenzip4mac;
 				PRODUCT_NAME = 7ZIP4MAC;
 				SDKROOT = macosx;

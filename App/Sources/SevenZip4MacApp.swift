@@ -48,8 +48,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 @main
 @MainActor
 struct SevenZip4MacApp: App {
-    @StateObject private var viewModel = ArchiveViewModel()
-    @StateObject private var compression = CompressionViewModel()
+    @StateObject private var windows = ArchiveWindowManager()
     @StateObject private var benchmark = BenchmarkViewModel()
     @StateObject private var settings = AppSettings()
     @StateObject private var profileStore = ProfileStore()
@@ -77,13 +76,21 @@ struct SevenZip4MacApp: App {
         // there is only ever one, so opening a file while running just routes
         // straight to the existing window instead.
         Window("7ZIP4MAC", id: "main") {
-            ContentView(viewModel: viewModel, compression: compression,
+            ContentView(viewModel: windows.main, compression: windows.mainCompression,
                         settings: settings, profileStore: profileStore, recents: recents)
                 .onAppear {
-                    viewModel.onArchiveOpened = { recents.record($0) }
+                    windows.main.onArchiveOpened = { recents.record($0) }
+                    windows.configure = { vm in vm.onArchiveOpened = { recents.record($0) } }
+                    windows.makeContent = { vm, compression in
+                        AnyView(ContentView(viewModel: vm, compression: compression,
+                                            settings: settings, profileStore: profileStore, recents: recents))
+                    }
+                    windows.showMainWindow = { openWindow(id: "main") }
                     appDelegate.onOpenFiles = { urls in
-                        for url in urls where url.isFileURL {
-                            viewModel.open(url: url)
+                        for url in urls {
+                            if case .openArchive(let archiveURL)? = AppURLRouter.command(for: url) {
+                                windows.open(archiveURL)
+                            }
                         }
                     }
                     // Point the user at Settings ▸ File Types once, on first
@@ -116,53 +123,7 @@ struct SevenZip4MacApp: App {
                     .keyboardShortcut("b", modifiers: [.command, .shift])
             }
             CommandGroup(replacing: .newItem) {
-                Button("New Archive…") {
-                    let sources = SourceSelectionPanel.present()
-                    if !sources.isEmpty {
-                        compression.begin(
-                            sources: sources,
-                            format: settings.defaultFormat,
-                            level: settings.defaultLevel,
-                            encryptFileNames: settings.defaultEncryptFileNames
-                        )
-                    }
-                }
-                .keyboardShortcut("n", modifiers: .command)
-                .disabled(compression.isRunning)
-
-                Button("Open Archive…") {
-                    if let url = ArchiveOpenPanel.present() {
-                        viewModel.open(url: url)
-                    }
-                }
-                .keyboardShortcut("o", modifiers: .command)
-
-                Menu("Open Recent") {
-                    ForEach(recents.existing, id: \.self) { url in
-                        Button(url.lastPathComponent) { viewModel.open(url: url) }
-                    }
-                    if !recents.existing.isEmpty {
-                        Divider()
-                        Button("Clear Menu") { recents.clear() }
-                    }
-                }
-                .disabled(recents.existing.isEmpty)
-
-                Button("Close Archive") {
-                    viewModel.close()
-                }
-                .disabled(viewModel.archive == nil)
-
-                Divider()
-
-                Button("Extract All…") {
-                    guard let archive = viewModel.archive,
-                          let folder = DestinationPanel.present(suggestedName: archive.url.lastPathComponent)
-                    else { return }
-                    viewModel.extract(into: folder, intoSubfolder: settings.extractIntoSubfolder)
-                }
-                .keyboardShortcut("e", modifiers: .command)
-                .disabled(viewModel.archive == nil || viewModel.isExtracting)
+                ArchiveMenuItems(windows: windows, settings: settings, recents: recents)
             }
         }
 
@@ -178,6 +139,80 @@ struct SevenZip4MacApp: App {
         Window("7ZIP4MAC Help", id: "help") {
             HelpView()
         }
+    }
+}
+
+/// File-menu items that act on the window the user is working in. Split into
+/// two views so the menu refreshes both when the active window changes and
+/// when that window's archive does.
+private struct ArchiveMenuItems: View {
+    @ObservedObject var windows: ArchiveWindowManager
+    @ObservedObject var settings: AppSettings
+    @ObservedObject var recents: RecentsStore
+
+    var body: some View {
+        ActiveArchiveMenuItems(
+            windows: windows, viewModel: windows.active, compression: windows.activeCompression,
+            settings: settings, recents: recents
+        )
+    }
+}
+
+private struct ActiveArchiveMenuItems: View {
+    let windows: ArchiveWindowManager
+    @ObservedObject var viewModel: ArchiveViewModel
+    @ObservedObject var compression: CompressionViewModel
+    @ObservedObject var settings: AppSettings
+    @ObservedObject var recents: RecentsStore
+
+    var body: some View {
+        Button("New Archive…") {
+            let sources = SourceSelectionPanel.present()
+            if !sources.isEmpty {
+                compression.begin(
+                    sources: sources,
+                    format: settings.defaultFormat,
+                    level: settings.defaultLevel,
+                    encryptFileNames: settings.defaultEncryptFileNames
+                )
+            }
+        }
+        .keyboardShortcut("n", modifiers: .command)
+        .disabled(compression.isRunning)
+
+        Button("Open Archive…") {
+            if let url = ArchiveOpenPanel.present() {
+                windows.open(url)
+            }
+        }
+        .keyboardShortcut("o", modifiers: .command)
+
+        Menu("Open Recent") {
+            ForEach(recents.existing, id: \.self) { url in
+                Button(url.lastPathComponent) { windows.open(url) }
+            }
+            if !recents.existing.isEmpty {
+                Divider()
+                Button("Clear Menu") { recents.clear() }
+            }
+        }
+        .disabled(recents.existing.isEmpty)
+
+        Button("Close Archive") {
+            viewModel.close()
+        }
+        .disabled(viewModel.archive == nil)
+
+        Divider()
+
+        Button("Extract All…") {
+            guard let archive = viewModel.archive,
+                  let folder = DestinationPanel.present(suggestedName: archive.url.lastPathComponent)
+            else { return }
+            viewModel.extract(into: folder, intoSubfolder: settings.extractIntoSubfolder)
+        }
+        .keyboardShortcut("e", modifiers: .command)
+        .disabled(viewModel.archive == nil || viewModel.isExtracting)
     }
 }
 

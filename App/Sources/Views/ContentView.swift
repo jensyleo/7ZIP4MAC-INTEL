@@ -104,21 +104,8 @@ struct ContentView: View {
             onOpenCreated: { url in
                 selection = []
                 viewModel.open(url: url)
-            },
-            onHandleIncoming: handleIncoming
+            }
         )
-    }
-
-    /// Routes an incoming file-open (double-click / "Open With") to opening
-    /// the archive.
-    private func handleIncoming(_ url: URL) {
-        switch AppURLRouter.command(for: url) {
-        case .openArchive(let archiveURL):
-            selection = []
-            viewModel.open(url: archiveURL)
-        case .none:
-            break
-        }
     }
 
     func startNewArchive() {
@@ -495,7 +482,6 @@ private struct SecondaryAlerts: ViewModifier {
     @Binding var pendingDroppedURLs: [URL]?
     @Binding var selection: Set<ArchiveEntry.ID>
     let onOpenCreated: (URL) -> Void
-    let onHandleIncoming: (URL) -> Void
 
     func body(content: Content) -> some View {
         content
@@ -551,7 +537,6 @@ private struct SecondaryAlerts: ViewModifier {
             .onChange(of: finishedDestination) { destination in
                 dismissExtractionResultIfQuiet(destination)
             }
-            .onOpenURL { url in onHandleIncoming(url) }
             .alert("Archive Test", isPresented: testPresented, presenting: viewModel.testMessage) { _ in
                 Button("OK", role: .cancel) { viewModel.dismissTest() }
             } message: { message in
