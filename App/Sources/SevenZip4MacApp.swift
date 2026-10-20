@@ -121,6 +121,7 @@ struct SevenZip4MacApp: App {
             CommandMenu("Tools") {
                 Button("Benchmark…") { openWindow(id: "benchmark") }
                     .keyboardShortcut("b", modifiers: [.command, .shift])
+                ToolsArchiveMenuItems(windows: windows)
             }
             CommandGroup(replacing: .newItem) {
                 ArchiveMenuItems(windows: windows, settings: settings, recents: recents)
@@ -139,6 +140,24 @@ struct SevenZip4MacApp: App {
         Window("7ZIP4MAC Help", id: "help") {
             HelpView()
         }
+    }
+}
+
+/// Tools-menu items that act on the window the user is working in.
+private struct ToolsArchiveMenuItems: View {
+    @ObservedObject var windows: ArchiveWindowManager
+
+    var body: some View {
+        ActiveToolsItems(viewModel: windows.active)
+    }
+}
+
+private struct ActiveToolsItems: View {
+    @ObservedObject var viewModel: ArchiveViewModel
+
+    var body: some View {
+        Button("Remove macOS Junk Files…") { viewModel.requestJunkRemoval() }
+            .disabled(!viewModel.canRemoveMacOSJunk)
     }
 }
 

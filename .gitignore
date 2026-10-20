@@ -35,3 +35,4 @@ xcuserdata/
 *.mobileprovision
 *.cer
 *.certSigningRequest
+ThirdParty/unar/out/

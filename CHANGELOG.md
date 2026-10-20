@@ -2,6 +2,25 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.7.0] — Passwords off the command line, unpack-bomb guard, macOS junk removal
+
+Ported from base v1.7.31–v1.7.33.
+
+### Security
+- Passwords no longer travel on the engine's command line, where any user of the Mac could read them with `ps`: 7-Zip receives them through a pseudo-terminal for create, open, list, test, extract, rename and delete. A password a terminal cannot carry (over 1,000 bytes, or containing a line break) keeps the old form.
+- The RAR fallback (`lsar`/`unar`) receives the password on standard input via a new `-password-stdin` option. These are modified builds of XADMaster 1.10.7 for x86_64; patches, build script, upstream versions and checksums are in `ThirdParty/unar/` and next to the binaries in the bundle.
+- Opening a single-stream archive (`.gz`, `.bz2`, `.xz`…) stops when its unpacked content would use up the free disk space (a decompression bomb), instead of filling the disk.
+
+### Added
+- Tools ▸ Remove macOS Junk Files… removes `__MACOSX`, `._*`, `.DS_Store` and similar clutter from the open archive, after confirmation.
+
+### Fixed
+- Names that merely start with `__` (`__init__.py`, `__tests__`) are no longer hidden while browsing; only dotfiles and `__MACOSX` are.
+- Deleting many entries runs in batches, and a delete that fails partway reloads the archive to show what is really in it.
+
+### Internal
+- Removed a duplicated destination check in Move.
+
 ## [1.6.0] — Several archives open at once
 
 ### Added

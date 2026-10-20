@@ -49,7 +49,7 @@ public final class AppSettings: ObservableObject {
     }
 
     /// Whether to show macOS/Unix "hidden" entries (names starting with "."
-    /// or "__", e.g. `.DS_Store`, `__MACOSX`) when browsing an archive.
+    /// and `__MACOSX`, e.g. `.DS_Store`) when browsing an archive.
     /// Off by default — these are noise left by macOS/zip tooling, not
     /// content the user put there.
     @Published public var showHiddenEntries: Bool {

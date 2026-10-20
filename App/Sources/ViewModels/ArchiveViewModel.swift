@@ -38,6 +38,16 @@ public final class ArchiveViewModel: ObservableObject {
     /// Entries of the currently loaded archive, in the current sort order.
     @Published public private(set) var entries: [ArchiveEntry] = []
 
+    /// The macOS clutter (`__MACOSX`, `._*`, `.DS_Store`…) in the open archive,
+    /// whether or not it is shown while browsing.
+    @Published public private(set) var macOSJunk: MacOSJunk.Summary = .none
+
+    /// What the user is being asked to confirm removing, if anything.
+    @Published public private(set) var pendingJunkRemoval: MacOSJunk.Summary?
+
+    /// Whether Tools ▸ Remove macOS Junk Files has anything to remove.
+    public var canRemoveMacOSJunk: Bool { archive != nil && !macOSJunk.isEmpty }
+
     /// The folder currently being browsed inside the archive ("" == root).
     @Published public private(set) var currentFolder: String = ""
 
@@ -182,6 +192,7 @@ public final class ArchiveViewModel: ObservableObject {
         cleanupStagingDirectory()
         state = .loading(url)
         entries = []
+        macOSJunk = .none
         currentFolder = ""
         visibleEntries = []
 
@@ -192,6 +203,7 @@ public final class ArchiveViewModel: ObservableObject {
                 if Task.isCancelled { return }
                 self.state = .loaded(archive)
                 self.applySort()
+                self.macOSJunk = MacOSJunk.summary(of: archive.entries)
                 self.pendingPasswordURL = nil
                 self.passwordAttemptFailed = false
                 self.passwordAttemptCount = 0
@@ -253,6 +265,7 @@ public final class ArchiveViewModel: ObservableObject {
         cleanupStagingDirectory()
         state = .empty
         entries = []
+        macOSJunk = .none
         currentFolder = ""
         visibleEntries = []
         sessionPassword = nil
@@ -560,7 +573,7 @@ public final class ArchiveViewModel: ObservableObject {
     /// Deletes entries from the archive in place and refreshes the listing.
     /// - Parameter notifySuccess: Whether to show a confirmation alert once
     ///   done. Failures always show, regardless.
-    public func deleteEntries(paths: [String], notifySuccess: Bool = true) {
+    public func deleteEntries(paths: [String], notifySuccess: Bool = true, successMessage: String? = nil) {
         guard case .loaded(let archive) = state, !paths.isEmpty else { return }
         guard !archive.isUnwrapped else {
             editMessage = Self.unwritableFormatMessage(for: archive)
@@ -573,22 +586,53 @@ public final class ArchiveViewModel: ObservableObject {
                 try await service.delete(archiveAt: archive.url, paths: paths, password: password)
                 try await self.reload(url: archive.url, password: password)
                 guard notifySuccess else { return }
-                self.editMessage = paths.count == 1
+                self.editMessage = successMessage ?? (paths.count == 1
                     ? "Deleted “\((paths[0] as NSString).lastPathComponent)”."
-                    : "Deleted \(paths.count) items."
+                    : "Deleted \(paths.count) items.")
             } catch {
                 self.editMessage = Self.describe(error)
+                // A delete that failed partway (it runs in batches) may still
+                // have changed the archive, so show what is really in it.
+                try? await self.reload(url: archive.url, password: self.sessionPassword)
             }
         }
+    }
+
+    /// Asks for confirmation to remove the macOS clutter from the open archive
+    /// (see ``MacOSJunk``). Says so instead when there is none, or when the
+    /// format can't be edited in place.
+    public func requestJunkRemoval() {
+        guard case .loaded(let archive) = state else { return }
+        guard !archive.isUnwrapped, Self.writableFormat(for: archive) != nil else {
+            editMessage = Self.unwritableFormatMessage(for: archive)
+            return
+        }
+        guard !macOSJunk.isEmpty else {
+            editMessage = "There are no macOS junk files (__MACOSX, ._*, .DS_Store…) in this archive."
+            return
+        }
+        pendingJunkRemoval = macOSJunk
+    }
+
+    public func confirmJunkRemoval() {
+        guard let request = pendingJunkRemoval else { return }
+        pendingJunkRemoval = nil
+        let count = request.fileCount
+        deleteEntries(
+            paths: request.roots,
+            successMessage: count == 0
+                ? "Removed the empty macOS junk folders."
+                : "Removed \(count) macOS junk file\(count == 1 ? "" : "s")."
+        )
+    }
+
+    public func cancelJunkRemoval() {
+        pendingJunkRemoval = nil
     }
 
     /// Moves (or renames) an entry to a new path within the same archive.
     public func moveEntry(path: String, toPath newPath: String, notifySuccess: Bool = true) {
         guard case .loaded(let archive) = state, path != newPath else { return }
-        guard newPath.isSafeArchiveRelativePath else {
-            Task { @MainActor in self.editMessage = Self.destinationNotAllowedMessage }
-            return
-        }
         guard newPath.isSafeArchiveRelativePath else {
             Task { @MainActor in self.editMessage = Self.destinationNotAllowedMessage }
             return
@@ -806,6 +850,7 @@ public final class ArchiveViewModel: ObservableObject {
         cleanupStagingDirectory()
         self.state = .loaded(archive)
         self.applySort()
+        self.macOSJunk = MacOSJunk.summary(of: archive.entries)
     }
 
     private func uncompressedSize(of archive: Archive, paths: [String]) -> UInt64 {
@@ -870,12 +915,6 @@ public final class ArchiveViewModel: ObservableObject {
         recomputeVisible()
     }
 
-    /// Whether a name is macOS/Unix "hidden" noise: dotfiles (`.DS_Store`,
-    /// `.git`) and zip-tool artifacts (`__MACOSX`).
-    private static func isHiddenName(_ name: String) -> Bool {
-        name.hasPrefix(".") || name.hasPrefix("__")
-    }
-
     /// Rebuilds `visibleEntries` for `currentFolder` from the full `entries`.
     private func recomputeVisible() {
         let prefix = currentFolder.isEmpty ? "" : currentFolder + "/"
@@ -890,14 +929,14 @@ public final class ArchiveViewModel: ObservableObject {
             if rest.isEmpty { continue }
             if let slash = rest.firstIndex(of: "/") {
                 let name = String(rest[..<slash])
-                guard showHiddenEntries || !Self.isHiddenName(name) else { continue }
+                guard showHiddenEntries || !MacOSJunk.isHiddenName(name) else { continue }
                 if seenFolder.insert(name).inserted { folderOrder.append(name) }
             } else if entry.isDirectory {
-                guard showHiddenEntries || !Self.isHiddenName(rest) else { continue }
+                guard showHiddenEntries || !MacOSJunk.isHiddenName(rest) else { continue }
                 if seenFolder.insert(rest).inserted { folderOrder.append(rest) }
                 explicitFolders[rest] = entry
             } else {
-                guard showHiddenEntries || !Self.isHiddenName(entry.name) else { continue }
+                guard showHiddenEntries || !MacOSJunk.isHiddenName(entry.name) else { continue }
                 files.append(entry)
             }
         }
