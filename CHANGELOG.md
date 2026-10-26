@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.7.1] — Recognised file types, matching icons
+
+Ported from base v1.7.34.
+
+### Fixed
+- Files of the formats 7ZIP4MAC declares itself (SquashFS, WIM, VHD/VHDX, VMDK, VDI, QCOW, ext, RPM, DEB, CHM, LZH, ARJ and the other disk images and archives macOS has no built-in type for) showed the generic "unknown" icon and were not offered the app in "Open With" until associated by hand. Their type declarations did not descend from `public.data`, so macOS treated each file as an anonymous type. They now do, and their document types list the filename extensions. After updating, open the app once; if Finder still shows the old icon, run `killall Finder` or restart the Mac. A format you had forced to open with the app can be set again in Settings ▸ File Types.
+
+### Changed
+- The icons of the filesystem and virtual-disk formats (APFS, ext, FAT, HFS, NTFS, QCOW, SquashFS, UDF, VDI, VHD, VHDX, VMDK) match the rest of the app's file icons, and are smaller.
+
+### Added
+- `.a` (static libraries, which are `ar` archives) is recognised as an AR archive.
+
 ## [1.7.0] — Passwords off the command line, unpack-bomb guard, macOS junk removal
 
 Ported from base v1.7.31–v1.7.33.
