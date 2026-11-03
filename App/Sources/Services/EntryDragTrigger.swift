@@ -79,9 +79,21 @@ private final class ArchiveEntryFilePromiseProvider: NSFilePromiseProvider, NSFi
                 if FileManager.default.fileExists(atPath: url.path) {
                     try FileManager.default.removeItem(at: url)
                 }
-                try FileManager.default.moveItem(at: extractedURL, to: url)
+                do {
+                    try FileManager.default.moveItem(at: extractedURL, to: url)
+                } catch {
+                    // Across volumes a move is a full copy, which some network
+                    // shares (Samba) refuse while copying metadata, leaving a
+                    // 0-byte file; copy just the contents instead.
+                    try? FileManager.default.removeItem(at: url)
+                    try ResilientCopy.copyItem(at: extractedURL, to: url)
+                    try? FileManager.default.removeItem(at: extractedURL)
+                }
                 completionHandler(nil)
             } catch {
+                // Whatever is at `url` now is a partial copy (the spot was
+                // cleared before moving); leave nothing behind, not a 0-byte file.
+                try? FileManager.default.removeItem(at: url)
                 completionHandler(error)
             }
         }

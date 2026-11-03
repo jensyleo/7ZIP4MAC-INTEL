@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.7.2] — Delete progress, copy to network shares that refuse metadata
+
+Ported from base v1.7.35 and v1.7.36.
+
+### Added
+- Deleting entries from an archive (and Tools ▸ Remove macOS Junk Files) shows a progress panel with percentage and current file. It has no Cancel button: stopping 7-Zip's archive rewrite midway could damage the archive.
+
+### Fixed
+- Dragging a file out to a network share that refuses extended attributes (a Samba share such as a Batocera or NAS) no longer leaves an empty 0-byte file. If the move fails, the contents are copied on their own, keeping the modification date and download marker where the destination allows, and nothing is left behind when it still fails.
+
+### Internal
+- Deleting uses 7-Zip's streamed output so progress can be read; the macOS Test-framework tests for the new code were written with XCTest.
+
 ## [1.7.1] — Recognised file types, matching icons
 
 Ported from base v1.7.34.

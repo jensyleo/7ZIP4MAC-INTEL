@@ -499,7 +499,7 @@ private struct SecondaryAlerts: ViewModifier {
                     ProgressPanelView(
                         title: editProgressTitle,
                         progress: progress,
-                        onCancel: viewModel.cancelEdit
+                        onCancel: editProgressCancel
                     )
                 }
             }
@@ -580,6 +580,11 @@ private struct SecondaryAlerts: ViewModifier {
         Binding(get: { viewModel.isExtracting }, set: { if !$0 { viewModel.cancelExtraction() } })
     }
 
+    /// A Delete cannot be stopped safely, so its panel has no Cancel button.
+    private var editProgressCancel: (() -> Void)? {
+        viewModel.isDeletingEntries ? nil : { viewModel.cancelEdit() }
+    }
+
     private var editProgressSheetPresented: Binding<Bool> {
         Binding(get: { viewModel.editProgress != nil }, set: { if !$0 { viewModel.cancelEdit() } })
     }
@@ -591,6 +596,7 @@ private struct SecondaryAlerts: ViewModifier {
     /// straight to compressing" rather than having its own phase to show.
     private var editProgressTitle: String {
         let name = viewModel.archiveURL?.lastPathComponent ?? "archive"
+        if viewModel.isDeletingEntries { return "Deleting from \(name)" }
         switch viewModel.editPhase {
         case .extracting: return "Extracting from \(name)"
         case .compressing: return "Updating \(name)"
