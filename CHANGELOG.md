@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.7.3] — Drag-out progress window no longer stays above other apps
+
+Ported from base v1.7.37.
+
+### Fixed
+- The progress window shown while dragging an entry out to Finder used the floating window level, so it stayed on top of every application, even after switching to another one. It now uses a normal level and is a child of the archive window it belongs to: centred over it, just above it, and not above other apps.
+
 ## [1.7.2] — Delete progress, copy to network shares that refuse metadata
 
 Ported from base v1.7.35 and v1.7.36.
