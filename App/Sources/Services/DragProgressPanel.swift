@@ -176,8 +176,8 @@ final class DragProgressPanelController {
         panel.titlebarAppearsTransparent = true
         // Above this app's own windows, but not above other apps': a normal
         // window level (not `.floating`, which sits over every app and stayed
-        // there when the user put another app on top — "la ventana de
-        // progreso queda por encima de todo", 2026-11-05) plus being a child
+        // there when the user put another app on top — reported as "the progress
+        // window stays above everything", 2026-11-05) plus being a child
         // of an archive window, which keeps it just above its parent.
         panel.isFloatingPanel = false
         panel.level = .normal

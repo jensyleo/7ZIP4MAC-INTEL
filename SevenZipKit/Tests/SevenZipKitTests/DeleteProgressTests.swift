@@ -76,3 +76,72 @@ final class DeleteProgressEngineTests: XCTestCase {
         XCTAssertTrue(names.contains("root/f2.bin"))
     }
 }
+
+final class DeleteLiteralNamesTests: XCTestCase {
+    override func setUpWithError() throws {
+        try XCTSkipUnless(SevenZipEngine.isAvailable, "7zz not bundled")
+    }
+
+    private func service() throws -> ArchiveService {
+        ArchiveService(executable: try SevenZipExecutable(validatingURL: SevenZipEngine.url))
+    }
+
+    func testNamesThatLookLikeWildcardsSwitchesOrListFilesAreDeletedLiterally() async throws {
+        for format in [ArchiveFormat.zip, .sevenZip] {
+            let dir = FileManager.default.temporaryDirectory.appending(path: "7zk-lit-\(UUID().uuidString)", directoryHint: .isDirectory)
+            let root = dir.appending(path: "r", directoryHint: .isDirectory)
+            try FileManager.default.createDirectory(at: root.appending(path: "dir/sub"), withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: dir) }
+            let names = ["a b.txt", "-weird.txt", "@at.txt", "star*.txt", "starX.txt", "q?.txt", "qZ.txt", "dir/ñ.txt", "dir/sub/x.txt", "keep.txt"]
+            for name in names { try name.write(to: root.appending(path: name), atomically: true, encoding: .utf8) }
+            let archive = dir.appending(path: "x.\(format.fileExtension)")
+            let svc = try service()
+            try await svc.compress(
+                CompressionRequest(destinationURL: archive, sourceURLs: [root], format: format, level: .store),
+                progress: { _ in }
+            )
+            // As the app does, take the names from the listing: macOS stores "ñ"
+            // decomposed, and the archive keeps it that way.
+            let listed = try await svc.open(archiveAt: archive, password: nil).entries.map(\.path)
+            let accented = try XCTUnwrap(listed.first { $0.precomposedStringWithCanonicalMapping == "r/dir/ñ.txt" })
+            let doomed = ["r/a b.txt", "r/-weird.txt", "r/@at.txt", "r/star*.txt", "r/q?.txt", accented, "r/dir/sub"]
+            try await svc.delete(archiveAt: archive, paths: doomed, password: nil)
+            let left = Set(try await svc.open(archiveAt: archive, password: nil).entries.filter { !$0.isDirectory }.map(\.path))
+            XCTAssertEqual(left, ["r/starX.txt", "r/qZ.txt", "r/keep.txt"], "only the named entries go; look-alikes stay (\(format))")
+        }
+    }
+
+    func testAThousandEntriesAreRemovedInOnePass() async throws {
+        let dir = FileManager.default.temporaryDirectory.appending(path: "7zk-many-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let root = dir.appending(path: "r", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        for i in 0..<1000 { try "x".write(to: root.appending(path: "junk\(i).tmp"), atomically: true, encoding: .utf8) }
+        try "k".write(to: root.appending(path: "keep.txt"), atomically: true, encoding: .utf8)
+        let archive = dir.appending(path: "x.zip")
+        let svc = try service()
+        try await svc.compress(
+            CompressionRequest(destinationURL: archive, sourceURLs: [root], format: .zip, level: .store), progress: { _ in }
+        )
+        try await svc.delete(archiveAt: archive, paths: (0..<1000).map { "r/junk\($0).tmp" }, password: nil)
+        let left = try await svc.open(archiveAt: archive, password: nil).entries.filter { !$0.isDirectory }.map(\.path)
+        XCTAssertEqual(left, ["r/keep.txt"])
+    }
+
+    func testAnEncryptedArchiveIsRewrittenWithThePassword() async throws {
+        let dir = FileManager.default.temporaryDirectory.appending(path: "7zk-enc-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let root = dir.appending(path: "r", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        for n in ["a.txt", "b.txt"] { try n.write(to: root.appending(path: n), atomically: true, encoding: .utf8) }
+        let archive = dir.appending(path: "x.7z")
+        let svc = try service()
+        try await svc.compress(
+            CompressionRequest(destinationURL: archive, sourceURLs: [root], format: .sevenZip, level: .fast, password: "p ss1", encryptFileNames: true),
+            progress: { _ in }
+        )
+        try await svc.delete(archiveAt: archive, paths: ["r/a.txt"], password: "p ss1")
+        let left = try await svc.open(archiveAt: archive, password: "p ss1").entries.filter { !$0.isDirectory }.map(\.path)
+        XCTAssertEqual(left, ["r/b.txt"])
+    }
+}

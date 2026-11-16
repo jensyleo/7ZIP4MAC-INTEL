@@ -10,7 +10,7 @@ import SevenZipKit
 /// macOS — doesn't reliably start a drag at all on macOS 13. `Button`'s own
 /// press gesture wins the conflict with `.onDrag`'s drag-gesture recognizer
 /// almost every time on this OS, so drag-out silently never began (reported
-/// directly: "no me permite arrastrar al Finder", true even for a single,
+/// directly: "it won't let me drag to Finder", true even for a single,
 /// unselected entry). Bypassing SwiftUI's gesture system entirely — the same
 /// fix that took several iterations to land upstream for multi-item drag —
 /// is the fix for single-item drag here too.

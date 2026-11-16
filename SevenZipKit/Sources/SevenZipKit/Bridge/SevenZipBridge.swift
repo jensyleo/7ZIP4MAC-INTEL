@@ -433,33 +433,49 @@ public struct SystemSevenZipBridge: SevenZipBridge {
             handoff = PasswordHandoff(password)
             arguments = handoff!.appending(to: arguments)
         }
-        // "--" so an entry name starting with "-" is never misread as a
-        // 7zz flag — see the matching comment in `extract`.
-        arguments.append("--")
-        // In batches, so removing thousands of entries (e.g. every `.DS_Store`
-        // of a big archive) can't overflow the command line.
-        let batchSize = 400
-        let starts = Array(stride(from: 0, to: paths.count, by: batchSize))
         let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize).flatMap { $0 }.map(UInt64.init) ?? 0
-        let state = DeleteProgressState(archiveSize: size, batches: starts.count, report: progress)
-        for (index, start) in starts.enumerated() {
-            let batch = Array(paths[start..<min(start + batchSize, paths.count)])
-            state.startBatch(index)
-            let (exitCode, errorData) = try await runner.stream(arguments + batch, input: handoff?.input) { chunk in
-                state.consume(chunk)
-            }
-            let result = ProcessResult(exitCode: exitCode, standardOutput: Data(), standardError: errorData)
 
-            if result.exitCode >= 2 {
-                let message = result.errorString.isEmpty ? result.outputString : result.errorString
-                if Self.indicatesWrongPassword(message) { throw ArchiveError.wrongPassword }
-                ArchiveLog.service.error("Delete failed (code \(result.exitCode)) for \(url.lastPathComponent, privacy: .public)")
-                throw ArchiveError.operationFailed(
-                    code: result.exitCode,
-                    message: message.trimmingCharacters(in: .whitespacesAndNewlines)
-                )
-            }
+        // Every pass of `d` rewrites the whole archive, so the names go to
+        // 7-Zip in one list file: one rewrite however many entries there are
+        // (a command line in batches rewrote it once per batch — slow on a
+        // network share). `-spd` makes the names literal, so an entry called
+        // `a*.txt` or `@x` is never read as a wildcard or another list file,
+        // and `-scsUTF-8` reads the file as UTF-8.
+        if paths.allSatisfy({ !$0.contains("\n") && !$0.contains("\r") }) {
+            let scratch = try FileManager.default.makeScratchDirectory(tag: "Delete")
+            defer { try? FileManager.default.removeItem(at: scratch) }
+            let list = scratch.appendingPathComponent("names.txt")
+            try (paths.joined(separator: "\n") + "\n").write(to: list, atomically: true, encoding: .utf8)
+            let state = DeleteProgressState(archiveSize: size, batches: 1, report: progress)
+            state.startBatch(0)
+            let (exitCode, errorData) = try await runner.stream(
+                arguments + ["-spd", "-scsUTF-8", "@" + list.path], input: handoff?.input
+            ) { chunk in state.consume(chunk) }
+            try Self.throwIfFatal(
+                ProcessResult(exitCode: exitCode, standardOutput: Data(), standardError: errorData),
+                operation: "Delete", url: url
+            )
             state.finishBatch()
+        } else {
+            // A name with a line break cannot go in a list file; fall back to
+            // the command line, in batches so it can't overflow, with "--" so
+            // a name starting with "-" is never misread as a switch.
+            arguments.append("--")
+            let batchSize = 400
+            let starts = Array(stride(from: 0, to: paths.count, by: batchSize))
+            let state = DeleteProgressState(archiveSize: size, batches: starts.count, report: progress)
+            for (index, start) in starts.enumerated() {
+                let batch = Array(paths[start..<min(start + batchSize, paths.count)])
+                state.startBatch(index)
+                let (exitCode, errorData) = try await runner.stream(arguments + batch, input: handoff?.input) { chunk in
+                    state.consume(chunk)
+                }
+                try Self.throwIfFatal(
+                    ProcessResult(exitCode: exitCode, standardOutput: Data(), standardError: errorData),
+                    operation: "Delete", url: url
+                )
+                state.finishBatch()
+            }
         }
         ArchiveLog.service.info("Delete finished for \(url.lastPathComponent, privacy: .public)")
     }
@@ -495,6 +511,18 @@ public struct SystemSevenZipBridge: SevenZipBridge {
     }
 
     // MARK: - Error classification
+
+    /// Throws the typed error for a fatal (exit code >= 2) result of `operation`.
+    private static func throwIfFatal(_ result: ProcessResult, operation: String, url: URL) throws {
+        guard result.exitCode >= 2 else { return }
+        let message = result.errorString.isEmpty ? result.outputString : result.errorString
+        if indicatesWrongPassword(message) { throw ArchiveError.wrongPassword }
+        ArchiveLog.service.error("\(operation, privacy: .public) failed (code \(result.exitCode)) for \(url.lastPathComponent, privacy: .public)")
+        throw ArchiveError.operationFailed(
+            code: result.exitCode,
+            message: message.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+    }
 
     private static func indicatesWrongPassword(_ message: String) -> Bool {
         let lowered = message.lowercased()

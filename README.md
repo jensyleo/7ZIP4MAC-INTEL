@@ -15,7 +15,7 @@ the latest macOS only. Both projects share the same author and license.
 > use [7ZIP4MAC](https://github.com/jensyleo/7ZIP4MAC) instead. (The
 > `SevenZipKit` engine package stays broadly portable.)
 
-> Status: **v1.4.0**
+Current version: v1.8.0
 
 ## Screenshot
 
@@ -25,23 +25,35 @@ the latest macOS only. Both projects share the same author and license.
 
 - **Open and browse** almost anything 7-Zip supports (7z, zip, tar, gz, bz2, xz,
   rar, iso, cab, cpio, arj, lzh, wim, rpm, deb, chm, and more) with hierarchical
-  folder navigation, sortable columns, and real per-file-type icons.
+  folder navigation, sortable columns, real per-file-type icons, and full
+  keyboard navigation (arrows, Home/End, Page Up/Down, type-to-select).
+- **Several archives at once**: opening another archive gets its own window
+  instead of replacing the one already showing.
 - **Extract** the whole archive or a selection, with live progress
   (percent/speed/ETA), cancellation, and a configurable policy for files that
   already exist at the destination (Overwrite / Skip / Rename Extracted File —
-  Settings ▸ General).
+  Settings ▸ General). Files extracted from a downloaded archive keep its
+  `com.apple.quarantine` marker, so Gatekeeper still checks them.
 - **Create archives** (7z / ZIP / TAR) with a chosen compression level, optional
   password + filename encryption, split volumes, and built-in or custom
   compression profiles.
 - **Edit archives in place** — Add, Rename, Move, Copy and Delete entries inside
-  an already-created archive, without a full re-compress.
-- **Password-protected archives**: the password is asked for and kept only in
-  memory for that session (never written to disk); the prompt caps out at 3
-  attempts before resetting the window.
-- **Drag an entry out to Finder** or preview it (or several selected entries,
-  with arrow-through navigation) in place with **Quick Look** (Space bar).
-- **Test** an archive's integrity, run a **compression benchmark**, and browse
-  recently opened archives.
+  an already-created archive, without a full re-compress, with a progress panel
+  for each. **Tools ▸ Remove macOS Junk Files…** strips `__MACOSX`, `._*` and
+  `.DS_Store`.
+- **Password-protected archives**: the password is asked for (with a show/hide
+  button) and kept only in memory for that session; it is handed to the engine
+  through a terminal rather than the command line, so other users of the Mac
+  cannot read it with `ps`. The prompt caps out at 3 attempts.
+- **Drag an entry out to Finder**, with a progress panel, including to network
+  shares that refuse metadata; or preview entries in place with **Quick Look**
+  (Space bar).
+- **Test** an archive's integrity with live progress, run a **compression
+  benchmark**, and browse recently opened archives.
+- **Damaged multi-part RAR sets** (a missing or 0-byte volume) can still be
+  opened, listed, extracted and tested; see "The 7-Zip engine" below.
+- Opening a single-stream archive (`.gz`, `.bz2`, `.xz`) is refused when it
+  would unpack to more than the disk can hold (decompression bombs).
 - File-type associations (Settings ▸ File Types) to make 7ZIP4MAC the default
   handler for the formats it supports — including an "Associate Recommended
   Files…" button that does the common ones in one action (after a warning:
@@ -69,6 +81,26 @@ the latest macOS only. Both projects share the same author and license.
 > Apple Silicon [7ZIP4MAC](https://github.com/jensyleo/7ZIP4MAC) runs the
 > identical association code and doesn't need this extra call on its newer
 > deployment target.
+
+## Installation
+
+Download the latest `.dmg` (or `.zip`) from the
+[Releases](https://github.com/jensyleo/7ZIP4MAC-INTEL/releases) page, open it
+and drag **7ZIP4MAC** to `/Applications`. The app is signed ad-hoc, so the first
+time you open it, right-click it ▸ **Open** to get past Gatekeeper. To build it
+yourself, see "Building" below.
+
+## Usage
+
+Open an archive with **⌘O**, by double-clicking it in Finder (after associating
+its format in Settings ▸ File Types), or by dropping it on the window. Select
+entries and use the toolbar to extract, test, add, rename, move, copy or delete
+them; **⌘N** creates a new archive; drag entries to Finder to extract them there.
+
+## Requirements
+
+- An Intel Mac (x86_64) running **macOS 13 (Ventura)** or later.
+- To build: Xcode 15+ and [XcodeGen](https://github.com/yonaskolb/XcodeGen).
 
 ## Architecture
 
@@ -107,10 +139,13 @@ provides the interface.
 7-Zip refuses an entire `name.partNN.rar` set when one volume is 0 bytes, and
 stops listing at the first missing volume. Only for such damaged sets (never for
 healthy archives), the app uses `lsar` and `unar` from
-[The Unarchiver](https://github.com/MacPaw/XADMaster), bundled unmodified at
-`Contents/Resources/Engine/` (built for x86_64). They read every volume's
-headers independently, so everything outside the damaged volumes can still be
-listed and extracted; files in a bad volume are reported as damaged.
+[The Unarchiver](https://github.com/MacPaw/XADMaster), bundled at
+`Contents/Resources/Engine/` and built for x86_64. They are **modified builds**:
+a small patch adds a `-password-stdin` option so a password never appears on the
+command line. The patches, build script and upstream checksums are in
+`ThirdParty/unar/`. They read every volume's headers independently, so
+everything outside the damaged volumes can still be listed and extracted; files
+in a bad volume are reported as damaged.
 
 ## Building
 
@@ -156,13 +191,21 @@ Not currently planned, but kept in mind for a future version:
 
 ## License
 
-Application code: [GNU GPL v3.0](LICENSE) © 2026 Jensy Leonardo Martínez Cruz.
-Bundled `lsar`/`unar` fallback: GNU LGPL 2.1 or later, by Dag Ågren and MacPaw —
-see `App/Resources/Engine/unar-LICENSE-LGPL-2.1.txt` and `unar-README.txt`.
-Bundled 7-Zip engine: GNU LGPL (with the unRAR restriction on commercial use of
-the unRAR code), by Igor Pavlov — see `App/Resources/Engine/License.txt`.
+This project is licensed under the [GNU General Public License v3.0](LICENSE) —
+see the LICENSE file for details. © 2026 jensyleo.
 
 This program is free software: you can redistribute it and/or modify it under the
-terms of the **GNU General Public License, version 3**. It is distributed in the
-hope that it will be useful, but **WITHOUT ANY WARRANTY**. See the [LICENSE](LICENSE)
-file for the full text.
+terms of the GNU General Public License, version 3. It is distributed in the
+hope that it will be useful, but WITHOUT ANY WARRANTY.
+
+## Third-Party Licenses
+
+- **7-Zip** (`7zz` engine, bundled unmodified) — GNU LGPL, with the unRAR
+  restriction on commercial use of the unRAR code, by Igor Pavlov.
+  <https://www.7-zip.org/> — license text in `App/Resources/Engine/License.txt`.
+- **XADMaster** (`lsar`/`unar`, bundled as modified builds) — GNU LGPL 2.1 or
+  later, by Dag Ågren and MacPaw. <https://github.com/MacPaw/XADMaster> — license
+  text in `App/Resources/Engine/unar-LICENSE-LGPL-2.1.txt`; modification notes in
+  `unar-README.txt`; corresponding source and patches in `ThirdParty/unar/`.
+- **universal-detector** (linked into `lsar`/`unar`) — GNU LGPL 2.1, by MacPaw.
+  <https://github.com/MacPaw/universal-detector>

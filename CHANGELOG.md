@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.8.0] — Keyboard navigation, faster and safer delete
+
+Ported from base v1.7.38 and v1.7.39.
+
+### Added
+- The keyboard selection stays in view: the list scrolls to the moved row. Home/End jump to the first/last row (⇧ extends the selection), Page Up/Page Down move by a screenful, and typing letters jumps to the first name that starts with them, like Finder.
+
+### Changed
+- Deleting entries rewrites the archive once, from a single UTF-8 list file, instead of once per batch of 400 names, which was slow on network shares. Entry names are matched literally (`-spd`), so a name such as `a*.txt`, `q?.txt` or `@x` can no longer delete look-alike entries or be read as a list file. A name containing a line break still falls back to the command line.
+
+### Fixed
+- Key handling is no longer switched off while a read-only or leftover text view (such as the Inspector's selectable fields) holds focus.
+
+### Internal
+- Source comments and the changelog are in English only; the unar source notes are a plain `.txt`.
+
 ## [1.7.3] — Drag-out progress window no longer stays above other apps
 
 Ported from base v1.7.37.
@@ -445,7 +461,7 @@ See the project memory file `windowgroup_macos13_decision.md` for full research 
   even before the v1.3.0 multi-item feature — SwiftUI's `Button` + `.onDrag`
   gesture recognizers conflict on this OS version, with `Button`'s press
   gesture almost always winning, so the drag gesture never started (reported:
-  "no me permite arrastrar al Finder como la versión para procesadores M").
+  "it won't let me drag to Finder like the Apple Silicon version").
   Replaced `Button`/`.onDrag` as the interaction surface for every row with a
   custom AppKit-level trigger (`EntryDragTrigger`): an `NSViewRepresentable`
   overlay that disambiguates click vs. drag in `mouseDown` by tracking pointer
@@ -463,8 +479,8 @@ See the project memory file `windowgroup_macos13_decision.md` for full research 
 - The v1.3.0 multi-item drag-out feature (`MultiItemDragTrigger`, a custom
   AppKit `NSFilePromiseProvider` + manual mouse-tracking overlay) broke
   drag-out to Finder entirely on macOS 13 — not just multi-selection, a
-  single-item drag no longer started at all. Reported directly: "no me
-  permite arrastrar al Finder como la versión para procesadores M."
+  single-item drag no longer started at all. Reported directly: "it won't
+  let me drag to Finder like the Apple Silicon version."
   Reverted `FileListView.swift`/`DragOut.swift` to the pre-1.3.0 single-item
   `.onDrag` implementation (byte-identical, diffed against the last known-good
   commit) and deleted `MultiItemDragTrigger.swift`. Multi-item drag-out is a
