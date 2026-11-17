@@ -15,7 +15,7 @@ the latest macOS only. Both projects share the same author and license.
 > use [7ZIP4MAC](https://github.com/jensyleo/7ZIP4MAC) instead. (The
 > `SevenZipKit` engine package stays broadly portable.)
 
-Current version: v1.8.0
+Current version: v1.8.1
 
 ## Screenshot
 

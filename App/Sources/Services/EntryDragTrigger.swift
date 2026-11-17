@@ -60,7 +60,7 @@ private final class ArchiveEntryFilePromiseProvider: NSFilePromiseProvider, NSFi
         final class TaskBox: @unchecked Sendable { var task: Task<Void, Never>? }
         let box = TaskBox()
         box.task = Task { @MainActor in
-            let item = panelController.beginItem(itemName: entryName)
+            let item = panelController.beginItem(path: entryPath, itemName: entryName)
             item.onCancel = { box.task?.cancel() }
             defer { panelController.finishItem(item) }
             do {
@@ -168,7 +168,11 @@ final class EntryDragTriggerView: NSView, NSDraggingSource {
         // multi-item drag shows a single steady progress panel instead of a
         // new one flashing per item — see `DragProgressPanelController`'s
         // own doc comment.
-        let panelController = DragProgressPanelController()
+        let panelController = DragProgressPanelController(expected: entries.map { entry in
+            (path: entry.path, name: entry.name, bytes: entry.isDirectory
+                ? DragOut.uncompressedSize(forEntryPath: entry.path, in: allEntries)
+                : entry.size)
+        })
         let items: [NSDraggingItem] = entries.map { entry in
             let provider = ArchiveEntryFilePromiseProvider(
                 archiveURL: archiveURL,

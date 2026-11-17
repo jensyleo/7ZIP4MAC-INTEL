@@ -342,8 +342,9 @@ public final class ArchiveViewModel: ObservableObject {
                 let service = try serviceProvider()
                 try await service.extract(request) { info in
                     Task { @MainActor in
-                        if case .running = self.extractionState {
-                            self.extractionState = .running(info)
+                        if case .running(let current) = self.extractionState,
+                           let next = info.advancing(from: current) {
+                            self.extractionState = .running(next)
                         }
                     }
                 }
@@ -415,7 +416,9 @@ public final class ArchiveViewModel: ObservableObject {
                     basis: basis
                 ) { info in
                     Task { @MainActor in
-                        if self.testToken == token { self.testProgress = info }
+                        if self.testToken == token, let next = info.advancing(from: self.testProgress) {
+                            self.testProgress = next
+                        }
                     }
                 }
                 guard self.testToken == token else { return }
@@ -551,7 +554,9 @@ public final class ArchiveViewModel: ObservableObject {
                     ),
                     progress: { info in
                         Task { @MainActor in
-                            if self.editProgress != nil { self.editProgress = info }
+                            if let current = self.editProgress, let next = info.advancing(from: current) {
+                                self.editProgress = next
+                            }
                         }
                     }
                 )
@@ -598,7 +603,9 @@ public final class ArchiveViewModel: ObservableObject {
                 let password = self.sessionPassword
                 try await service.delete(archiveAt: archive.url, paths: paths, password: password) { info in
                     Task { @MainActor in
-                        if self.isDeletingEntries { self.editProgress = info }
+                        if self.isDeletingEntries, let next = info.advancing(from: self.editProgress) {
+                            self.editProgress = next
+                        }
                     }
                 }
                 try await self.reload(url: archive.url, password: password)
@@ -724,7 +731,9 @@ public final class ArchiveViewModel: ObservableObject {
                     ),
                     progress: { info in
                         Task { @MainActor in
-                            if self.editProgress != nil { self.editProgress = info }
+                            if let current = self.editProgress, let next = info.scaled(into: 0, 0.5).advancing(from: current) {
+                                self.editProgress = next
+                            }
                         }
                     }
                 )
@@ -762,7 +771,9 @@ public final class ArchiveViewModel: ObservableObject {
                     ),
                     progress: { info in
                         Task { @MainActor in
-                            if self.editProgress != nil { self.editProgress = info }
+                            if let current = self.editProgress, let next = info.scaled(into: 0.5, 1).advancing(from: current) {
+                                self.editProgress = next
+                            }
                         }
                     }
                 )

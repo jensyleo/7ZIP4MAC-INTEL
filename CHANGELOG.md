@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.8.1] — Steady progress bar
+
+Ported from base v1.7.40.
+
+### Fixed
+- The progress bar no longer "dances" while extracting or dragging several entries out. The system progress bar animated on its own clock and trailed behind the percentage; it is replaced by a bar drawn at exactly the figure shown.
+- Dragging many entries out no longer opens a new panel per file: the panel knows every dragged item and its size from the start, measures against the whole selection and stays up briefly at 100% before closing.
+- Progress updates can no longer move a bar backwards: every bar (extracting, testing, adding, copying, deleting, creating) only moves forward, and copying an entry fills the bar once instead of twice.
+- Drag panel redraws are limited to ten per second so dozens of files cannot keep the window from painting.
+
 ## [1.8.0] — Keyboard navigation, faster and safer delete
 
 Ported from base v1.7.38 and v1.7.39.
